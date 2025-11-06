@@ -7,10 +7,10 @@ Provides APIs for seller registration, login, channel management, and dashboard 
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
-from app.auth import Token, decode_token, verify_api_key
+from app.auth import Token, create_access_token, create_refresh_token, decode_token, verify_api_key
 from app.response_models import StandardResponse
 from app.seller_models import Seller
 from app.seller_service import SellerService
@@ -37,6 +37,7 @@ def get_seller_service() -> SellerService:
 async def get_current_seller(
     authorization: Annotated[str | None, Header()] = None,
     x_api_key: Annotated[str | None, Header()] = None,
+    access_token: Annotated[str | None, Cookie()] = None,
     service: SellerService = Depends(get_seller_service),
 ) -> Seller:
     """Dependency: Get current authenticated seller from token or API key."""
@@ -57,10 +58,16 @@ async def get_current_seller(
             )
         return seller
 
+    # Try cookie token
+    token_to_verify = None
+    if access_token:
+        token_to_verify = access_token
     # Try Bearer token
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.replace("Bearer ", "")
-        payload = decode_token(token)
+    elif authorization and authorization.startswith("Bearer "):
+        token_to_verify = authorization.replace("Bearer ", "")
+
+    if token_to_verify:
+        payload = decode_token(token_to_verify)
 
         if not payload or payload.get("type") != "access":
             raise HTTPException(
@@ -164,12 +171,14 @@ def get_seller_router() -> APIRouter:
     @router.post("/register", response_model=StandardResponse[dict[str, Any]])
     async def register(
         request: RegisterRequest,
+        response: Response,
         service: SellerService = Depends(get_seller_service),
     ):
         """
         Register a new seller account.
 
         Creates a new seller account with email and password. Returns API key for programmatic access.
+        Also sets authentication cookies for immediate login.
         """
         try:
             seller = await service.create_seller(
@@ -178,12 +187,37 @@ def get_seller_router() -> APIRouter:
                 company_name=request.company_name,
             )
 
+            # Generate tokens for immediate login after registration
+            access_token = create_access_token(data={"sub": str(seller.id), "email": seller.email})
+            refresh_token = create_refresh_token(data={"sub": str(seller.id), "email": seller.email})
+
+            # Set httpOnly cookies
+            response.set_cookie(
+                key="access_token",
+                value=access_token,
+                httponly=True,
+                secure=False,  # Set to True in production with HTTPS
+                samesite="lax",
+                max_age=30 * 60,  # 30 minutes
+            )
+
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token,
+                httponly=True,
+                secure=False,  # Set to True in production with HTTPS
+                samesite="lax",
+                max_age=7 * 24 * 60 * 60,  # 7 days
+            )
+
             return StandardResponse.success_response(
                 message="Seller registered successfully",
                 data={
                     "seller_id": str(seller.id),
                     "email": seller.email,
                     "api_key": seller.api_key,
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
                 },
             )
         except ValueError as e:
@@ -196,12 +230,14 @@ def get_seller_router() -> APIRouter:
     @router.post("/login", response_model=StandardResponse[Token])
     async def login(
         request: LoginRequest,
+        response: Response,
         service: SellerService = Depends(get_seller_service),
     ):
         """
         Authenticate a seller and get access tokens.
 
         Returns JWT access and refresh tokens for authenticated requests.
+        Also sets secure httpOnly cookies for enhanced security.
         """
         try:
             result = await service.authenticate_seller(request.email, request.password)
@@ -212,6 +248,27 @@ def get_seller_router() -> APIRouter:
                 )
 
             seller, tokens = result
+
+            # Set httpOnly cookies for enhanced security
+            # Access token expires in 30 minutes by default
+            response.set_cookie(
+                key="access_token",
+                value=tokens["access_token"],
+                httponly=True,
+                secure=False,  # Set to True in production with HTTPS
+                samesite="lax",
+                max_age=30 * 60,  # 30 minutes in seconds
+            )
+
+            # Refresh token expires in 7 days by default
+            response.set_cookie(
+                key="refresh_token",
+                value=tokens["refresh_token"],
+                httponly=True,
+                secure=False,  # Set to True in production with HTTPS
+                samesite="lax",
+                max_age=7 * 24 * 60 * 60,  # 7 days in seconds
+            )
 
             return StandardResponse.success_response(
                 message="Login successful",
@@ -248,6 +305,18 @@ def get_seller_router() -> APIRouter:
                 created_at=seller.created_at.isoformat(),
                 last_login=seller.last_login.isoformat() if seller.last_login else None,
             ),
+        )
+
+    @router.post("/logout")
+    async def logout(response: Response):
+        """
+        Logout the current user by clearing authentication cookies.
+        """
+        response.delete_cookie(key="access_token", samesite="lax")
+        response.delete_cookie(key="refresh_token", samesite="lax")
+        return StandardResponse.success_response(
+            message="Logged out successfully",
+            data=None,
         )
 
     @router.post("/stripe-keys", response_model=StandardResponse[dict[str, str]])

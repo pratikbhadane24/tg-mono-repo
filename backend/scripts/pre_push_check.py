@@ -13,11 +13,11 @@ Usage:
     Can also be run manually: python scripts/pre_push_check.py
 """
 
-import sys
-import subprocess
-from pathlib import Path
-from datetime import datetime
 import json
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
 
 
 class Colors:
@@ -65,7 +65,7 @@ def run_command(cmd, description, allow_failure=False):
     Run a command and return True if successful.
     """
     print_info(f"Running: {description}")
-    
+
     try:
         result = subprocess.run(
             cmd,
@@ -73,7 +73,7 @@ def run_command(cmd, description, allow_failure=False):
             text=True,
             check=False
         )
-        
+
         if result.returncode == 0:
             print_success(f"{description} passed")
             if result.stdout:
@@ -85,12 +85,12 @@ def run_command(cmd, description, allow_failure=False):
                 print(result.stdout)
             if result.stderr:
                 print(result.stderr)
-            
+
             if not allow_failure:
                 print_error(f"\nPush blocked due to failed check: {description}")
                 sys.exit(1)
             return False
-            
+
     except FileNotFoundError:
         print_warning(f"Command not found, skipping: {' '.join(cmd)}")
         return False
@@ -104,14 +104,14 @@ def run_command(cmd, description, allow_failure=False):
 def check_dependencies():
     """Check if required tools are installed."""
     print_header("Checking Dependencies")
-    
+
     dependencies = {
         "python": ["python", "--version"],
         "ruff": ["ruff", "--version"],
         "black": ["black", "--version"],
         "pytest": ["pytest", "--version"],
     }
-    
+
     missing = []
     for name, cmd in dependencies.items():
         try:
@@ -124,58 +124,58 @@ def check_dependencies():
         except FileNotFoundError:
             missing.append(name)
             print_warning(f"{name} is not installed")
-    
+
     if missing:
         print_warning(f"\nMissing dependencies: {', '.join(missing)}")
         print_info("Install them with: pip install -r requirements.txt")
         return False
-    
+
     return True
 
 
 def run_linting():
     """Run code linting with ruff."""
     print_header("Running Linting (ruff)")
-    
+
     # Run ruff linting
     success = run_command(
         ["ruff", "check", "app", "routers", "config", "tests", "main.py"],
         "Ruff linting",
         allow_failure=False
     )
-    
+
     return success
 
 
 def run_formatting():
     """Check code formatting with black."""
     print_header("Checking Code Formatting (black)")
-    
+
     # Run black in check mode
     success = run_command(
         ["black", "--check", "--diff", "app", "routers", "config", "tests", "main.py"],
         "Black formatting check",
         allow_failure=False
     )
-    
+
     if not success:
         print_info("\nTo fix formatting issues, run: black app routers config tests main.py")
-    
+
     return success
 
 
 def run_tests():
     """Run all tests with pytest."""
     print_header("Running Tests (pytest)")
-    
+
     # Run pytest with coverage
     success = run_command(
-        ["pytest", "-v", "--tb=short", "--cov=app", "--cov=routers", "--cov=config", 
+        ["pytest", "-v", "--tb=short", "--cov=app", "--cov=routers", "--cov=config",
          "--cov-report=term-missing", "tests/"],
         "Pytest test suite",
         allow_failure=False
     )
-    
+
     return success
 
 
@@ -183,10 +183,10 @@ def log_results(passed, failed):
     """Log validation results to logs folder."""
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
-    
+
     timestamp = datetime.now().isoformat()
     log_file = log_dir / f"pre_push_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    
+
     log_data = {
         "timestamp": timestamp,
         "passed": passed,
@@ -194,10 +194,10 @@ def log_results(passed, failed):
         "total": len(passed) + len(failed),
         "success": len(failed) == 0
     }
-    
+
     with open(log_file, 'w') as f:
         json.dump(log_data, f, indent=2)
-    
+
     print_info(f"Results logged to: {log_file}")
 
 
@@ -205,14 +205,14 @@ def main():
     """Main validation function."""
     print_header("Pre-Push Validation")
     print_info(f"Starting validation at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     passed_checks = []
     failed_checks = []
-    
+
     # Check dependencies
     if not check_dependencies():
         print_warning("\nSome dependencies are missing, but continuing with available tools...")
-    
+
     # Run linting
     try:
         if run_linting():
@@ -223,7 +223,7 @@ def main():
         failed_checks.append("linting")
         log_results(passed_checks, failed_checks)
         sys.exit(1)
-    
+
     # Run formatting check
     try:
         if run_formatting():
@@ -234,7 +234,7 @@ def main():
         failed_checks.append("formatting")
         log_results(passed_checks, failed_checks)
         sys.exit(1)
-    
+
     # Run tests
     try:
         if run_tests():
@@ -245,13 +245,13 @@ def main():
         failed_checks.append("tests")
         log_results(passed_checks, failed_checks)
         sys.exit(1)
-    
+
     # Log results
     log_results(passed_checks, failed_checks)
-    
+
     # Final summary
     print_header("Validation Summary")
-    
+
     if failed_checks:
         print_error(f"Failed checks: {', '.join(failed_checks)}")
         print_error("\n❌ Push blocked! Please fix the issues above.")

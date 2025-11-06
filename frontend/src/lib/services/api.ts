@@ -26,23 +26,27 @@ export class ApiClient {
 			'Content-Type': 'application/json'
 		};
 
-		const token = this.getAccessToken();
-		if (token) {
-			headers['Authorization'] = `Bearer ${token}`;
+		// Note: Cookies are automatically sent with credentials: 'include'
+		// We no longer need to manually add Authorization header for cookie-based auth
+		// API key can still be added for programmatic access if needed
+		const apiKey = this.getApiKey();
+		if (apiKey) {
+			headers['X-API-Key'] = apiKey;
 		}
 
 		return headers;
 	}
 
-	private getAccessToken(): string | null {
+	private getApiKey(): string | null {
 		if (typeof window === 'undefined') return null;
-		return localStorage.getItem('access_token');
+		return localStorage.getItem('api_key');
 	}
 
 	async request<T>(endpoint: string, options: RequestInit = {}): Promise<StandardResponse<T>> {
 		const url = `${this.baseUrl}${endpoint}`;
 		const config: RequestInit = {
 			...options,
+			credentials: 'include', // Include cookies in requests
 			headers: {
 				...this.getHeaders(),
 				...options.headers
@@ -56,7 +60,8 @@ export class ApiClient {
 			if (!response.ok) {
 				// Handle 401 Unauthorized
 				if (response.status === 401 && typeof window !== 'undefined') {
-					localStorage.clear();
+					// Clear any remaining local storage
+					localStorage.removeItem('api_key');
 					goto('/login');
 				}
 

@@ -1,11 +1,13 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
+
 	interface Props {
 		type?: 'button' | 'submit' | 'reset';
 		variant?: 'primary' | 'secondary' | 'danger';
 		disabled?: boolean;
 		loading?: boolean;
 		onclick?: () => void;
-		children: unknown;
+		children?: Snippet;
 	}
 
 	let {
@@ -40,7 +42,7 @@
 			<div class="spinner h-4 w-4 border-2"></div>
 			Loading...
 		</span>
-	{:else}
+	{:else if children}
 		{@render children()}
 	{/if}
 </button>
