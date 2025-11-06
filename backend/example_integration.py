@@ -19,10 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def grant_telegram_access(
-    user_id: str,
-    channel_ids: list[int],
-    period_days: int = 30,
-    reference: str = None
+    user_id: str, channel_ids: list[int], period_days: int = 30, reference: str = None
 ) -> dict:
     """
     Grant a user access to Telegram channels.
@@ -47,9 +44,9 @@ async def grant_telegram_access(
                     "ext_user_id": user_id,
                     "chat_ids": channel_ids,
                     "period_days": period_days,
-                    "ref": reference or f"access_{user_id}"
+                    "ref": reference or f"access_{user_id}",
                 },
-                timeout=30.0  # 30 second timeout
+                timeout=30.0,  # 30 second timeout
             )
 
             response.raise_for_status()
@@ -71,7 +68,7 @@ async def handle_payment_success(user_id: str, payment_id: str, plan_id: str):
     plan_channels = {
         "basic": [-1001234567890],
         "premium": [-1001234567890, -1001111111111],
-        "enterprise": [-1001234567890, -1001111111111, -1002222222222]
+        "enterprise": [-1001234567890, -1001111111111, -1002222222222],
     }
 
     channel_ids = plan_channels.get(plan_id, [])
@@ -85,7 +82,7 @@ async def handle_payment_success(user_id: str, payment_id: str, plan_id: str):
             user_id=user_id,
             channel_ids=channel_ids,
             period_days=30,
-            reference=f"payment_{payment_id}"
+            reference=f"payment_{payment_id}",
         )
 
         if result.get("success"):
@@ -124,7 +121,7 @@ async def handle_subscription_renewal(user_id: str, subscription_id: str):
             user_id=user_id,
             channel_ids=channel_ids,
             period_days=30,  # Extend by 30 days
-            reference=f"renewal_{subscription_id}"
+            reference=f"renewal_{subscription_id}",
         )
 
         if result.get("success"):
@@ -146,10 +143,7 @@ async def check_telegram_service_health() -> bool:
     """
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{TELEGRAM_SERVICE_URL}/health",
-                timeout=5.0
-            )
+            response = await client.get(f"{TELEGRAM_SERVICE_URL}/health", timeout=5.0)
 
             if response.status_code == 200:
                 data = response.json()
@@ -224,7 +218,7 @@ if __name__ == "__main__":
                     user_id="test_user_123",
                     channel_ids=[-1001234567890],
                     period_days=30,
-                    reference="test"
+                    reference="test",
                 )
                 print(f"Result: {result}")
             except Exception as e:

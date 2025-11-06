@@ -2,7 +2,6 @@
 Tests for seller authentication and management.
 """
 
-
 from app.auth import (
     create_access_token,
     create_refresh_token,

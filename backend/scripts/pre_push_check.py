@@ -22,15 +22,16 @@ from pathlib import Path
 
 class Colors:
     """ANSI color codes for terminal output."""
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
 
 
 def print_header(message):
@@ -67,12 +68,7 @@ def run_command(cmd, description, allow_failure=False):
     print_info(f"Running: {description}")
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
         if result.returncode == 0:
             print_success(f"{description} passed")
@@ -141,7 +137,7 @@ def run_linting():
     success = run_command(
         ["ruff", "check", "app", "routers", "config", "tests", "main.py"],
         "Ruff linting",
-        allow_failure=False
+        allow_failure=False,
     )
 
     return success
@@ -155,7 +151,7 @@ def run_formatting():
     success = run_command(
         ["black", "--check", "--diff", "app", "routers", "config", "tests", "main.py"],
         "Black formatting check",
-        allow_failure=False
+        allow_failure=False,
     )
 
     if not success:
@@ -170,10 +166,18 @@ def run_tests():
 
     # Run pytest with coverage
     success = run_command(
-        ["pytest", "-v", "--tb=short", "--cov=app", "--cov=routers", "--cov=config",
-         "--cov-report=term-missing", "tests/"],
+        [
+            "pytest",
+            "-v",
+            "--tb=short",
+            "--cov=app",
+            "--cov=routers",
+            "--cov=config",
+            "--cov-report=term-missing",
+            "tests/",
+        ],
         "Pytest test suite",
-        allow_failure=False
+        allow_failure=False,
     )
 
     return success
@@ -192,10 +196,10 @@ def log_results(passed, failed):
         "passed": passed,
         "failed": failed,
         "total": len(passed) + len(failed),
-        "success": len(failed) == 0
+        "success": len(failed) == 0,
     }
 
-    with open(log_file, 'w') as f:
+    with open(log_file, "w") as f:
         json.dump(log_data, f, indent=2)
 
     print_info(f"Results logged to: {log_file}")
@@ -271,5 +275,6 @@ if __name__ == "__main__":
     except Exception as e:
         print_error(f"\n\nUnexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

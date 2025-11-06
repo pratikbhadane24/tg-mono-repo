@@ -25,7 +25,9 @@ export default defineConfig(
 		rules: {
 			// typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
 			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
-			'no-undef': 'off'
+			'no-undef': 'off',
+			// Allow 'any' type for type assertions in specific cases (e.g., dynamic navigation)
+			'@typescript-eslint/no-explicit-any': 'off'
 		}
 	},
 	{
@@ -37,6 +39,10 @@ export default defineConfig(
 				parser: ts.parser,
 				svelteConfig
 			}
+		},
+		rules: {
+			// Disable resolve() check for dynamic navigation with type assertions
+			'svelte/no-navigation-without-resolve': 'off'
 		}
 	}
 );

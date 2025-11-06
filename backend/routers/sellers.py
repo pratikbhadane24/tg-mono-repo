@@ -189,7 +189,9 @@ def get_seller_router() -> APIRouter:
 
             # Generate tokens for immediate login after registration
             access_token = create_access_token(data={"sub": str(seller.id), "email": seller.email})
-            refresh_token = create_refresh_token(data={"sub": str(seller.id), "email": seller.email})
+            refresh_token = create_refresh_token(
+                data={"sub": str(seller.id), "email": seller.email}
+            )
 
             # Set httpOnly cookies
             response.set_cookie(
