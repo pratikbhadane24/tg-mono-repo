@@ -88,6 +88,17 @@ class TelegramConfig(BaseSettings):
         description="Refresh token expiration time in days",
     )
 
+    # Environment configuration
+    ENVIRONMENT: Literal["development", "production"] = Field(
+        default="development",
+        description="Application environment (affects cookie security settings)",
+    )
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.ENVIRONMENT == "production"
+
     def get_database_name(self) -> str:
         """
         Get the database name to use.

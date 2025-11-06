@@ -14,11 +14,22 @@ from app.auth import Token, create_access_token, create_refresh_token, decode_to
 from app.response_models import StandardResponse
 from app.seller_models import Seller
 from app.seller_service import SellerService
+from config import get_telegram_config
 
 logger = logging.getLogger(__name__)
 
 # Module-level service instance (set by app on startup)
 _seller_service: SellerService | None = None
+
+
+def _get_cookie_settings() -> dict[str, Any]:
+    """Get cookie settings based on environment."""
+    config = get_telegram_config()
+    return {
+        "httponly": True,
+        "secure": config.is_production,  # True in production, False in development
+        "samesite": "lax",
+    }
 
 
 def set_seller_service(service: SellerService):
@@ -193,23 +204,23 @@ def get_seller_router() -> APIRouter:
                 data={"sub": str(seller.id), "email": seller.email}
             )
 
+            # Get environment-aware cookie settings
+            cookie_settings = _get_cookie_settings()
+            config = get_telegram_config()
+
             # Set httpOnly cookies
             response.set_cookie(
                 key="access_token",
                 value=access_token,
-                httponly=True,
-                secure=False,  # Set to True in production with HTTPS
-                samesite="lax",
-                max_age=30 * 60,  # 30 minutes
+                max_age=config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                **cookie_settings,
             )
 
             response.set_cookie(
                 key="refresh_token",
                 value=refresh_token,
-                httponly=True,
-                secure=False,  # Set to True in production with HTTPS
-                samesite="lax",
-                max_age=7 * 24 * 60 * 60,  # 7 days
+                max_age=config.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+                **cookie_settings,
             )
 
             return StandardResponse.success_response(
@@ -251,25 +262,23 @@ def get_seller_router() -> APIRouter:
 
             seller, tokens = result
 
+            # Get environment-aware cookie settings
+            cookie_settings = _get_cookie_settings()
+            config = get_telegram_config()
+
             # Set httpOnly cookies for enhanced security
-            # Access token expires in 30 minutes by default
             response.set_cookie(
                 key="access_token",
                 value=tokens["access_token"],
-                httponly=True,
-                secure=False,  # Set to True in production with HTTPS
-                samesite="lax",
-                max_age=30 * 60,  # 30 minutes in seconds
+                max_age=config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                **cookie_settings,
             )
 
-            # Refresh token expires in 7 days by default
             response.set_cookie(
                 key="refresh_token",
                 value=tokens["refresh_token"],
-                httponly=True,
-                secure=False,  # Set to True in production with HTTPS
-                samesite="lax",
-                max_age=7 * 24 * 60 * 60,  # 7 days in seconds
+                max_age=config.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+                **cookie_settings,
             )
 
             return StandardResponse.success_response(
@@ -314,8 +323,9 @@ def get_seller_router() -> APIRouter:
         """
         Logout the current user by clearing authentication cookies.
         """
-        response.delete_cookie(key="access_token", samesite="lax")
-        response.delete_cookie(key="refresh_token", samesite="lax")
+        cookie_settings = _get_cookie_settings()
+        response.delete_cookie(key="access_token", **cookie_settings)
+        response.delete_cookie(key="refresh_token", **cookie_settings)
         return StandardResponse.success_response(
             message="Logged out successfully",
             data=None,
