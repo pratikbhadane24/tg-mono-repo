@@ -22,7 +22,8 @@
 	let removingMember: string | null = $state(null);
 
 	onMount(async () => {
-		if (!authService.isAuthenticated()) {
+		const isAuth = await authService.checkAuth();
+		if (!isAuth) {
 			goto('/login');
 			return;
 		}

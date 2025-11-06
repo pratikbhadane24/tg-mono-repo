@@ -24,7 +24,8 @@
 	let formError = $state('');
 
 	onMount(async () => {
-		if (!authService.isAuthenticated()) {
+		const isAuth = await authService.checkAuth();
+		if (!isAuth) {
 			goto('/login');
 			return;
 		}
@@ -204,6 +205,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="modal-title"
+		tabindex="-1"
 		onclick={closeAddModal}
 		onkeydown={(e) => e.key === 'Escape' && closeAddModal()}
 	>

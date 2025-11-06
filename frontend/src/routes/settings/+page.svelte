@@ -38,7 +38,8 @@
 	];
 
 	onMount(async () => {
-		if (!authService.isAuthenticated()) {
+		const isAuth = await authService.checkAuth();
+		if (!isAuth) {
 			goto('/login');
 			return;
 		}
@@ -213,15 +214,15 @@
 					{#if profile}
 						<div class="space-y-4">
 							<div>
-								<label class="text-sm text-gray-400 uppercase">Email</label>
+								<span class="text-sm text-gray-400 uppercase">Email</span>
 								<p class="text-lg font-semibold">{profile.email}</p>
 							</div>
 							<div>
-								<label class="text-sm text-gray-400 uppercase">Company Name</label>
+								<span class="text-sm text-gray-400 uppercase">Company Name</span>
 								<p class="text-lg font-semibold">{profile.company_name || 'Not set'}</p>
 							</div>
 							<div>
-								<label class="text-sm text-gray-400 uppercase">Account Status</label>
+								<span class="text-sm text-gray-400 uppercase">Account Status</span>
 								<p>
 									{#if profile.is_active}
 										<span class="badge badge-success">Active</span>
@@ -234,12 +235,12 @@
 								</p>
 							</div>
 							<div>
-								<label class="text-sm text-gray-400 uppercase">Member Since</label>
+								<span class="text-sm text-gray-400 uppercase">Member Since</span>
 								<p class="text-lg">{formatDate(profile.created_at)}</p>
 							</div>
 							{#if profile.last_login}
 								<div>
-									<label class="text-sm text-gray-400 uppercase">Last Login</label>
+									<span class="text-sm text-gray-400 uppercase">Last Login</span>
 									<p class="text-lg">{formatDate(profile.last_login)}</p>
 								</div>
 							{/if}
@@ -392,10 +393,10 @@
 				/>
 
 				<div class="mb-4">
-					<label class="mb-2 block text-sm font-medium tracking-wide text-gray-300 uppercase">
+					<span class="mb-2 block text-sm font-medium tracking-wide text-gray-300 uppercase">
 						Events to Subscribe
 						<span class="text-[var(--cyber-pink)]">*</span>
-					</label>
+					</span>
 					<div class="space-y-2 rounded bg-[var(--bg-tertiary)] p-4">
 						{#each availableEvents as event (event)}
 							<label

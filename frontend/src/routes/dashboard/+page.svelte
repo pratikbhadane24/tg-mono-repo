@@ -15,7 +15,8 @@
 	let error = $state('');
 
 	onMount(async () => {
-		if (!authService.isAuthenticated()) {
+		const isAuth = await authService.checkAuth();
+		if (!isAuth) {
 			goto('/login');
 			return;
 		}
