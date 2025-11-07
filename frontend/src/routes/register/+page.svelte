@@ -13,8 +13,9 @@
 	let error = $state('');
 	let success = $state(false);
 
-	onMount(() => {
-		if (authService.isAuthenticated()) {
+	onMount(async () => {
+		const isAuth = await authService.checkAuth();
+		if (isAuth) {
 			goto('/dashboard');
 		}
 	});

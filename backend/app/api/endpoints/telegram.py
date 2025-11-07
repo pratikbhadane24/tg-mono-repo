@@ -3,7 +3,6 @@ Telegram routes - Clean API endpoints with dependency injection.
 
 This module provides FastAPI routes for Telegram functionality without
 using global variables. Services are injected via FastAPI dependencies.
-All endpoints require seller authentication.
 """
 
 import logging
@@ -12,35 +11,25 @@ from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from app.bot_api import TelegramBotAPI
-from app.models import utcnow
-from app.response_models import ErrorDetail, StandardResponse
-from app.seller_models import Seller
-from app.seller_service import SellerService
-from app.service import TelegramMembershipService
+from app.core.auth import get_current_user
+from app.core.config import get_telegram_config
+from app.models import ErrorDetail, StandardResponse, utcnow
+from app.services import TelegramBotAPI, TelegramMembershipService
 from app.timezone_utils import get_period_end
-from config.settings import get_telegram_config
 
 logger = logging.getLogger(__name__)
 
 # Module-level manager instance (set by app on startup)
 _manager = None
-_seller_service = None
 
 
 def set_telegram_manager(manager):
     """Set the global telegram manager instance."""
     global _manager
     _manager = manager
-
-
-def set_seller_service_for_telegram(service: SellerService):
-    """Set the seller service for telegram router."""
-    global _seller_service
-    _seller_service = service
 
 
 def get_telegram_service() -> TelegramMembershipService:
@@ -55,77 +44,6 @@ def get_telegram_bot() -> TelegramBotAPI:
     if _manager is None:
         raise HTTPException(status_code=503, detail="Telegram services not initialized")
     return _manager.get_bot()
-
-
-def get_seller_service_telegram() -> SellerService:
-    """Dependency: Get the seller service instance for telegram routes."""
-    if _seller_service is None:
-        raise HTTPException(status_code=503, detail="Seller service not initialized")
-    return _seller_service
-
-
-async def get_current_seller_telegram(
-    authorization: str | None = Header(None),
-    x_api_key: str | None = Header(None, alias="X-API-Key"),
-    seller_service: SellerService = Depends(get_seller_service_telegram),
-) -> Seller:
-    """Dependency: Get current authenticated seller from token or API key."""
-    from app.auth import decode_token, verify_api_key
-
-    # Try API key first
-    if x_api_key:
-        if not verify_api_key(x_api_key):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid API key format",
-            )
-
-        seller = await seller_service.get_seller_by_api_key(x_api_key)
-        if not seller:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid API key",
-            )
-        return seller
-
-    # Try Bearer token
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.replace("Bearer ", "")
-        payload = decode_token(token)
-
-        if not payload or payload.get("type") != "access":
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid or expired token",
-            )
-
-        seller_id = payload.get("sub")
-        if not seller_id:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid token payload",
-            )
-
-        seller = await seller_service.get_seller(seller_id)
-        if not seller:
-            raise HTTPException(
-                status_code=401,
-                detail="Seller not found",
-            )
-
-        if not seller.is_active:
-            raise HTTPException(
-                status_code=403,
-                detail="Account is deactivated",
-            )
-
-        return seller
-
-    raise HTTPException(
-        status_code=401,
-        detail="Authentication required. Provide Authorization header or X-API-Key header.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
 
 
 # Request/Response models
@@ -193,21 +111,18 @@ def get_telegram_router() -> APIRouter:
     @router.post("/api/telegram/channels", response_model=StandardResponse[ChannelAddData])
     async def add_channel(
         payload: ChannelAddRequest,
-        seller: Seller = Depends(get_current_seller_telegram),
-        seller_service: SellerService = Depends(get_seller_service_telegram),
         service: TelegramMembershipService = Depends(get_telegram_service),
         bot: TelegramBotAPI = Depends(get_telegram_bot),
+        current_user: dict = Depends(get_current_user),
     ):
         """Add/register a Telegram channel and validate bot permissions.
 
-        **Requires Authentication:** Bearer token or X-API-Key header
+        Requires authentication via JWT token.
 
         - Verifies the chat exists (tries provided chat_id; if positive, also tries -100 prefix form)
         - Verifies the bot is administrator and has needed permissions
         - Upserts channel document into DB that the app uses
-        - Creates seller_channel entry for multi-tenant isolation
         """
-
         input_chat_id = payload.chat_id
         tried_chat_ids = []
         resolved_chat_id = None
@@ -299,22 +214,6 @@ def get_telegram_router() -> APIRouter:
             }
             await service.db.channels.insert_one(create_doc)
 
-        # Create or update seller_channel entry for multi-tenant isolation
-        try:
-            await seller_service.create_seller_channel(
-                seller_id=seller.id,
-                chat_id=resolved_chat_id,
-                name=doc_update.get("name"),
-                description=None,
-                price_per_month=None,
-            )
-        except ValueError:
-            # Channel already exists for this seller, update it
-            await seller_service.db.seller_channels.update_one(
-                {"seller_id": seller.id, "chat_id": resolved_chat_id},
-                {"$set": {"name": doc_update.get("name"), "updated_at": now}},
-            )
-
         data = ChannelAddData(
             chat_id=input_chat_id,
             stored_chat_id=resolved_chat_id,
@@ -324,7 +223,7 @@ def get_telegram_router() -> APIRouter:
         )
 
         return StandardResponse.success_response(
-            message="Channel added successfully and linked to your account.",
+            message="Channel added successfully. Using invite_link by default for simplest user journey.",
             data=data,
         )
 
@@ -347,27 +246,16 @@ def get_telegram_router() -> APIRouter:
     @router.post("/api/telegram/force-remove", response_model=StandardResponse[ForceRemoveData])
     async def force_remove(
         req: ForceRemoveRequest,
-        seller: Seller = Depends(get_current_seller_telegram),
-        seller_service: SellerService = Depends(get_seller_service_telegram),
         service: TelegramMembershipService = Depends(get_telegram_service),
         bot: TelegramBotAPI = Depends(get_telegram_bot),
+        current_user: dict = Depends(get_current_user),
     ):
         """Forcefully ban a user from a channel and mark membership expired.
 
-        **Requires Authentication:** Bearer token or X-API-Key header
-
-        **Seller Ownership Required:** You must own the channel to remove members.
+        Requires authentication via JWT token.
 
         Useful for manual moderation or testing without waiting for the scheduler.
         """
-        # Verify seller owns the channel
-        seller_channel = await seller_service.get_seller_channel(seller.id, req.chat_id)
-        if not seller_channel:
-            return StandardResponse.error_response(
-                message="Channel not found or you don't have permission",
-                error_code="CHANNEL_NOT_FOUND",
-                error_description=f"You don't own channel {req.chat_id}",
-            )
         # Find internal user
         user_doc = await service.db.users.find_one({"ext_user_id": req.ext_user_id})
         if not user_doc:
@@ -456,31 +344,19 @@ def get_telegram_router() -> APIRouter:
     @router.post("/api/telegram/grant-access", response_model=StandardResponse[GrantAccessData])
     async def grant_access(
         request: GrantAccessRequest,
-        seller: Seller = Depends(get_current_seller_telegram),
-        seller_service: SellerService = Depends(get_seller_service_telegram),
         service: TelegramMembershipService = Depends(get_telegram_service),
+        current_user: dict = Depends(get_current_user),
     ):
         """
         Grant access to Telegram channels for a user.
 
-        **Requires Authentication:** Bearer token or X-API-Key header
+        Requires authentication via JWT token.
 
-        **Seller Ownership Required:** You must own all specified channels.
-
-        This endpoint is called after successful payment.
+        This endpoint is called by the payment system after successful payment.
         It creates or updates memberships and generates invite links.
 
         Period end is calculated at 23:59:59 UTC for the requested number of days.
         """
-        # Verify seller owns all requested channels
-        for chat_id in request.chat_ids:
-            seller_channel = await seller_service.get_seller_channel(seller.id, chat_id)
-            if not seller_channel:
-                return StandardResponse.error_response(
-                    message=f"Channel {chat_id} not found or you don't have permission",
-                    error_code="CHANNEL_NOT_FOUND",
-                    error_description=f"You don't own channel {chat_id}. Add it first via POST /api/telegram/channels",
-                )
         try:
             # Upsert user
             user = await service.upsert_user(request.ext_user_id)

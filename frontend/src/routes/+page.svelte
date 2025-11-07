@@ -3,8 +3,9 @@
 	import { goto } from '$lib/utils/navigation';
 	import { authService } from '$lib/services/auth.service';
 
-	onMount(() => {
-		if (authService.isAuthenticated()) {
+	onMount(async () => {
+		const isAuth = await authService.checkAuth();
+		if (isAuth) {
 			goto('/dashboard');
 		} else {
 			goto('/login');

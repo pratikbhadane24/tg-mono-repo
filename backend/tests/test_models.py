@@ -84,6 +84,9 @@ class TestChannel:
         assert channel.chat_id == -1001234567890
         assert channel.name == "Test Channel"
         assert channel.join_model == "invite_link"
+        # New optional invite-related fields should default to None
+        assert channel.invite_ttl_seconds is None
+        assert channel.invite_member_limit is None
         assert isinstance(channel.created_at, datetime)
 
     def test_create_channel_with_join_request(self):

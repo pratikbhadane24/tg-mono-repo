@@ -11,8 +11,9 @@
 	let loading = $state(false);
 	let error = $state('');
 
-	onMount(() => {
-		if (authService.isAuthenticated()) {
+	onMount(async () => {
+		const isAuth = await authService.checkAuth();
+		if (isAuth) {
 			goto('/dashboard');
 		}
 	});

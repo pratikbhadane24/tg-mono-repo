@@ -26,12 +26,85 @@ The Telegram Paid Subscriber Service provides a REST API for managing paid acces
 
 ## Authentication
 
-Currently, the service does not implement authentication. **In production, you should:**
+The service implements JWT (JSON Web Token) authentication for protected endpoints. 
 
-1. Add API key authentication
-2. Use IP whitelisting
-3. Deploy behind a reverse proxy with authentication
-4. Use HTTPS only
+### Protected Endpoints
+
+The following endpoints require authentication:
+- `POST /api/telegram/grant-access`
+- `POST /api/telegram/channels`
+- `POST /api/telegram/force-remove`
+
+### Authentication Methods
+
+The service accepts JWT tokens via three methods (in order of precedence):
+
+1. **Authorization Header** (Recommended)
+   ```http
+   Authorization: Bearer <jwt_token>
+   ```
+
+2. **Cookie**
+   ```http
+   Cookie: access_token=<jwt_token>
+   ```
+
+3. **Custom Header**
+   ```http
+   x-access-token: <jwt_token>
+   ```
+
+### JWT Token Requirements
+
+- The token must be signed with the `JWT_SECRET_KEY` configured in your environment
+- Token must include a `username` field in the payload
+- Token must not be expired
+
+### Example Request with Authentication
+
+```bash
+curl -X POST https://your-domain.com/api/telegram/grant-access \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ext_user_id": "user123",
+    "chat_ids": [-1001234567890],
+    "period_days": 30,
+    "ref": "payment_abc123"
+  }'
+```
+
+### Authentication Errors
+
+If authentication fails, the API returns:
+
+```json
+{
+  "success": false,
+  "message": "Authentication required",
+  "error": {
+    "code": "UNAUTHORIZED",
+    "description": "Could not validate credentials"
+  }
+}
+```
+
+**Status Code:** `401 Unauthorized`
+
+### Configuration
+
+Set your JWT secret key in the environment:
+
+```env
+JWT_SECRET_KEY=your_secret_key_here_change_this_in_production
+JWT_ALGORITHM=HS256  # Optional, defaults to HS256
+```
+
+**Important Security Notes:**
+1. Use a strong, random JWT_SECRET_KEY in production
+2. Never commit the JWT_SECRET_KEY to version control
+3. Rotate the JWT_SECRET_KEY periodically
+4. Use HTTPS only in production
 
 ## Base URL
 

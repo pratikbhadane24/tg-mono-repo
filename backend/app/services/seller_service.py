@@ -10,15 +10,15 @@ from typing import Any
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.auth import (
+from app.core.auth import (
     create_access_token,
     create_refresh_token,
     generate_api_key,
     get_password_hash,
     verify_password,
 )
-from app.models import Audit, utcnow
-from app.seller_models import Payment, Seller, SellerChannel, WebhookConfig
+from app.models.telegram import Audit, utcnow
+from app.models.seller import PaymentRecord, Seller, SellerChannel, WebhookConfig
 
 logger = logging.getLogger(__name__)
 
@@ -299,7 +299,7 @@ class SellerService:
         metadata: dict | None = None,
     ) -> Payment:
         """Record a payment transaction."""
-        payment = Payment(
+        payment = PaymentRecord(
             seller_id=seller_id,
             customer_id=customer_id,
             amount=amount,
@@ -325,7 +325,7 @@ class SellerService:
         async for doc in (
             self.db.payments.find({"seller_id": seller_id}).sort("created_at", -1).limit(limit)
         ):
-            payments.append(Payment(**doc))
+            payments.append(PaymentRecord(**doc))
         return payments
 
     async def _log_audit(

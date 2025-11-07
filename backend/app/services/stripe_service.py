@@ -10,7 +10,7 @@ from typing import Any
 import stripe
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.seller_models import Seller
+from app.models.seller import Seller
 
 logger = logging.getLogger(__name__)
 

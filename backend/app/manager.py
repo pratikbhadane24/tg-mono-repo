@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from motor.motor_asyncio import AsyncIOMotorDatabase
 
-    from config.settings import TelegramConfig
+    from app.core.config import TelegramConfig
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class TelegramManager:
 
         # Lazy import config
         if config is None:
-            from config.settings import get_telegram_config
+            from app.core.config import get_telegram_config
 
             config = get_telegram_config()
         self.config = config
@@ -77,10 +77,12 @@ class TelegramManager:
             logger.info("Initializing Telegram services...")
 
             # Lazy imports
-            from app.bot_api import TelegramBotAPI
-            from app.database import create_telegram_indexes
-            from app.scheduler import MembershipScheduler
-            from app.service import TelegramMembershipService
+            from app.services import (
+                MembershipScheduler,
+                TelegramBotAPI,
+                TelegramMembershipService,
+            )
+            from app.services.database import create_telegram_indexes
 
             # Create database indexes
             await create_telegram_indexes(self.db)

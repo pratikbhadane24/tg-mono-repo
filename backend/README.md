@@ -1,174 +1,101 @@
 # Telegram Paid Subscriber Service
 
-**Multi-User SaaS Platform** for managing paid access to Telegram channels with automated membership management.
-
-## 🎯 What's New - Multi-User Platform!
-
-This service now operates as a complete **SaaS platform** where:
-
-- 🏢 **SELLERS** register and manage their own Telegram channels
-- 💳 **Payment Flexibility**: Use your own Stripe account or the platform's
-- 📊 **Dashboard APIs**: Complete member management and analytics
-- 🔔 **Webhooks**: Real-time event notifications
-- 🔐 **Secure**: JWT authentication and API key support
-- 🏗️ **Multi-Tenant**: Complete data isolation between sellers
-
-### For Sellers
-
-Get started in minutes:
-1. Register your account → Get API key
-2. Add your Telegram channels
-3. Configure payments (your Stripe or ours)
-4. Start selling access!
-
-**→ [Seller Quick Start Guide](docs/SELLER_QUICKSTART.md)**
-
-**→ [Complete API Documentation](docs/MULTI_USER_API.md)**
+Production-grade FastAPI service for managing paid access to Telegram channels with automated membership management.
 
 ## Overview
 
-This platform provides comprehensive Telegram channel access management for **SaaS businesses**:
+This standalone service provides comprehensive Telegram channel access management:
 
-### Core Features
-
-- 🔐 **Seller Management**: Registration, authentication, and profile management
-- 💰 **Payment Processing**: Stripe integration with dual-mode (platform or seller's account)
-- 📈 **Dashboard APIs**: Statistics, member management, and analytics
-- 🔗 **Automated Access Control**: Time-limited channel access with invite links
-- ⏰ **Scheduled Cleanup**: Automatic member removal on expiration
-- 🔔 **Webhook System**: Event notifications for member and payment events
-- 📊 **Audit Logging**: Complete tracking of all operations
-
-### API Endpoints
-
-#### Seller Management
-- `POST /api/sellers/register` - Register new seller
-- `POST /api/sellers/login` - Authentication
-- `GET /api/sellers/me` - Get profile
-- `GET /api/sellers/stats` - Dashboard statistics
-- `GET /api/sellers/channels` - List channels
-- `GET /api/sellers/members` - List members
-- `POST /api/sellers/webhooks` - Configure webhooks
-
-#### Payments
-- `POST /api/payments/checkout` - Create Stripe checkout
-- `POST /api/payments/payment-intent` - Create payment intent
-- `GET /api/payments/subscription/{id}` - Get subscription
-- `POST /api/payments/webhook` - Stripe webhook handler
-
-#### Customer Access
-- `POST /api/telegram/grant-access` - Grant channel access
-- `POST /api/telegram/force-remove` - Remove member
-- `POST /api/telegram/channels` - Register channel
+- 🔐 **Automated Access Control**: Grant time-limited access to Telegram channels
+- 🔗 **Invite Link Generation**: Create unique, expiring invite links for each user
+- ✅ **Join Request Handling**: Automatically approve authorized join requests
+- ⏰ **Scheduled Cleanup**: Remove expired members automatically
+- 🔗 **Account Linking**: Connect your system users with Telegram accounts
+- 📊 **Audit Logging**: Track all access grants and membership changes
 
 ## Quick Start
 
-### Installation
-
 ```bash
-# Clone repository
-git clone https://github.com/pratikbhadane24/tg-paid-subscriber-service.git
-cd tg-paid-subscriber-service
-
 # Install dependencies
 pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your configuration
-```
+# Edit .env with your bot token and MongoDB URI
 
-### Configuration
+# Add a channel
+python -m app.cli add -1001234567890 "My Channel"
 
-Create `.env` file:
-
-```env
-# Telegram Bot
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_WEBHOOK_SECRET_PATH=secret_path
-BASE_URL=https://your-domain.com
-
-# Database
-MONGODB_URI=mongodb://localhost:27017/telegram
-
-# Stripe (Platform)
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_PUBLISHABLE_KEY=pk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# JWT
-JWT_SECRET_KEY=your-very-secure-secret
-```
-
-### Run the Service
-
-```bash
-# Development
+# Start the service
 uvicorn main:app --reload --port 8001
-
-# Production
-granian --interface asgi main:app --host 0.0.0.0 --port 8001 --workers 4
 ```
-
-### Docker
-
-```bash
-docker-compose up -d
-```
-
-## Architecture
-
-### Multi-Tenant Design
-
-```
-sellers              # Seller accounts with auth
-  ├── seller_channels    # Channels owned by sellers
-  ├── payments           # Payment transactions
-  └── webhook_configs    # Webhook configurations
-
-users                # End-user accounts
-  ├── memberships        # Channel memberships
-  └── invites            # Invite links
-
-channels             # Global channel registry
-audits              # Complete audit trail
-```
-
-### Data Isolation
-
-- Each seller can only access their own data
-- Automatic filtering by `seller_id`
-- Secure authentication (JWT + API keys)
-- Webhook signature verification
 
 ## Documentation
 
-- 📚 **[Multi-User API Documentation](docs/MULTI_USER_API.md)** - Complete API reference
-- 🚀 **[Seller Quick Start](docs/SELLER_QUICKSTART.md)** - Get started as a seller
-- 📖 **[User Guide](docs/user-guide.md)** - Daily operations
-- 🔌 **[Original API](docs/api.md)** - Telegram bot API reference
-- 🛠️ **[Setup Guide](docs/setup.md)** - Installation and configuration
+- 📚 **[Setup Guide](docs/setup.md)**: Complete installation and configuration
+- 📖 **[User Guide](docs/user-guide.md)**: Daily operations and usage
+- 🔌 **[API Documentation](docs/api.md)**: Complete REST API reference
+- 🏗️ **[Agent Instructions](.github/agents/instructions.md)**: Development guidelines
+
+## Features
+
+### Core Functionality
+
+- **Grant Access API**: RESTful endpoint to grant users channel access
+- **Webhook Handler**: Process Telegram updates (join requests, member events)
+- **Background Scheduler**: Automatically clean up expired memberships
+- **CLI Tool**: Manage channel configurations
+- **Audit Logs**: Complete tracking of all operations
+
+### Architecture
+
+- **FastAPI**: Modern async web framework
+- **MongoDB**: Document storage for users, memberships, and audit logs
+- **Motor**: Async MongoDB driver
+- **Pydantic**: Data validation and settings management
+- **Granian/Uvicorn**: High-performance ASGI servers
+
+### Production Ready
+
+- ✅ Comprehensive test suite with pytest
+- ✅ Pre-push validation (linting, formatting, tests)
+- ✅ Docker support with optimized multi-stage build
+- ✅ Complete API documentation
+- ✅ Structured logging
+- ✅ Health check endpoint
+- ✅ MongoDB indexes for performance
 
 ## Directory Structure
 
 ```
-tg-paid-subscriber-service/
-├── app/                    # Core application logic
-│   ├── bot_api.py         # Telegram Bot API wrapper
-│   ├── service.py         # Business logic layer
-│   ├── manager.py         # Service coordinator
-│   ├── models.py          # Pydantic data models
-│   ├── scheduler.py       # Background task scheduler
-│   ├── database.py        # Database operations
-│   └── cli.py             # Channel management CLI
-├── routers/                # FastAPI route handlers
-├── config/                 # Configuration management
-├── tests/                  # Comprehensive test suite
-├── docs/                   # Complete documentation
-├── scripts/                # Utility scripts
-├── logs/                   # Change logs
-└── .github/agents/         # Development guidelines
+ra-tg-service/
+├── app/                      # Main application package
+│   ├── api/                  # API layer
+│   │   └── endpoints/        # API endpoints
+│   │       ├── health.py     # Health check endpoints
+│   │       └── telegram.py   # Telegram API endpoints
+│   ├── core/                 # Core utilities
+│   │   ├── auth.py           # Authentication utilities
+│   │   └── config.py         # Configuration management
+│   ├── models/               # Data models
+│   │   ├── telegram.py       # Telegram domain models
+│   │   └── responses.py      # API response models
+│   ├── services/             # Business logic services
+│   │   ├── bot_api.py        # Telegram Bot API wrapper
+│   │   ├── telegram_service.py  # Membership service
+│   │   ├── scheduler.py      # Background scheduler
+│   │   └── database.py       # Database operations
+│   ├── main.py               # FastAPI application
+│   ├── manager.py            # Service coordinator
+│   ├── cli.py                # Channel management CLI
+│   └── timezone_utils.py     # Timezone utilities
+├── tests/                    # Comprehensive test suite
+├── docs/                     # Complete documentation
+├── scripts/                  # Utility scripts
+├── main.py                   # Entry point (imports app.main)
+└── .github/agents/           # Development guidelines
 ```
+
 
 ## Installation
 
@@ -213,6 +140,7 @@ TELEGRAM_BOT_TOKEN=your_bot_token_here
 TELEGRAM_WEBHOOK_SECRET_PATH=random_secret_path
 BASE_URL=https://your-domain.com
 MONGODB_URI=mongodb://localhost:27017/telegram
+JWT_SECRET_KEY=your_secret_key_here_change_this_in_production
 ```
 
 See [Setup Guide](docs/setup.md) for complete configuration details.
@@ -230,12 +158,20 @@ python -m app.cli list
 
 Development:
 ```bash
+# Using backward-compatible entry point
 uvicorn main:app --reload --port 8001
+
+# Or using new structure directly
+uvicorn app.main:app --reload --port 8001
 ```
 
 Production:
 ```bash
+# Using backward-compatible entry point
 granian --interface asgi main:app --host 0.0.0.0 --port 8001 --workers 4
+
+# Or using new structure directly
+granian --interface asgi app.main:app --host 0.0.0.0 --port 8001 --workers 4
 ```
 
 ### Grant Access via API
@@ -369,9 +305,10 @@ See [User Guide - Troubleshooting](docs/user-guide.md#troubleshooting) for commo
 ## Security
 
 - ⚠️ Never commit secrets or tokens
-- ✅ Use environment variables
+- ✅ Use environment variables for all secrets (JWT_SECRET_KEY, TELEGRAM_BOT_TOKEN, etc.)
 - ✅ Enable HTTPS for webhooks
-- ⚠️ Implement API authentication for production
+- ✅ JWT authentication is implemented for API endpoints (grant-access, channels, force-remove)
+- ✅ Use strong, random JWT_SECRET_KEY in production
 - ⚠️ Configure rate limiting for production
 - ✅ Use strong webhook secret paths
 

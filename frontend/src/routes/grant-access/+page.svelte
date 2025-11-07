@@ -22,7 +22,8 @@
 	let reference = $state('');
 
 	onMount(async () => {
-		if (!authService.isAuthenticated()) {
+		const isAuth = await authService.checkAuth();
+		if (!isAuth) {
 			goto('/login');
 			return;
 		}
@@ -162,10 +163,10 @@
 
 					<!-- Channel Selection -->
 					<div class="mb-4">
-						<label class="mb-2 block text-sm font-medium tracking-wide text-gray-300 uppercase">
+						<span class="mb-2 block text-sm font-medium tracking-wide text-gray-300 uppercase">
 							Select Channels
 							<span class="text-[var(--cyber-pink)]">*</span>
-						</label>
+						</span>
 						<div class="max-h-60 space-y-2 overflow-y-auto rounded bg-[var(--bg-tertiary)] p-4">
 							{#each channels as channel (channel.id)}
 								<label

@@ -5,7 +5,38 @@ Configuration for Telegram paid access system.
 from typing import Literal
 
 from pydantic import AliasChoices, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+try:
+    # pydantic v2 separate settings package
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except Exception:
+    # Fallback for environments without pydantic_settings installed (tests/runtime)
+    # Implement a minimal BaseSettings-like fallback using pydantic.BaseModel so tests
+    # that instantiate TelegramConfig() from environment variables still work.
+    import os
+
+    from pydantic import BaseModel
+
+    class BaseSettingsFallback(BaseModel):
+        model_config = {"extra": "ignore"}
+
+        def __init__(self, **data):
+            # Collect environment variables for declared fields if not provided
+            env_data: dict = {}
+            fields = getattr(self.__class__, "model_fields", None) or getattr(
+                self.__class__, "__fields__", {}
+            )
+            for name in fields:
+                # Only pick up env vars not explicitly passed
+                if name not in data:
+                    val = os.getenv(name)
+                    if val is not None:
+                        env_data[name] = val
+            merged = {**env_data, **data}
+            super().__init__(**merged)
+
+    BaseSettings = BaseSettingsFallback
+    SettingsConfigDict = dict
 
 # Default database name for Telegram service
 DEFAULT_DATABASE_NAME = "telegram"
@@ -56,7 +87,31 @@ class TelegramConfig(BaseSettings):
         description="Default join model for channels",
     )
 
-    # Stripe configuration
+    # JWT Authentication
+    JWT_SECRET_KEY: str = Field(
+        ...,
+        description="Secret key for JWT token signing and verification",
+    )
+    JWT_ALGORITHM: str = Field(
+        default="HS256",
+        description="Algorithm for JWT token encoding/decoding",
+    )
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=30,
+        description="Access token expiration time in minutes",
+    )
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=7,
+        description="Refresh token expiration time in days",
+    )
+
+    # Environment configuration (for cookie security)
+    ENVIRONMENT: Literal["development", "production"] = Field(
+        default="development",
+        description="Application environment (affects cookie security settings)",
+    )
+
+    # Stripe configuration (for seller payments)
     STRIPE_SECRET_KEY: str | None = Field(
         default=None,
         description="Stripe secret key for platform payments",
@@ -70,23 +125,10 @@ class TelegramConfig(BaseSettings):
         description="Stripe webhook signing secret",
     )
 
-    # JWT configuration
-    JWT_SECRET_KEY: str = Field(
-        default="your-secret-key-change-in-production",
-        description="Secret key for JWT token signing",
-    )
-    JWT_ALGORITHM: str = Field(
-        default="HS256",
-        description="Algorithm for JWT token signing",
-    )
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30,
-        description="Access token expiration time in minutes",
-    )
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
-        default=7,
-        description="Refresh token expiration time in days",
-    )
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.ENVIRONMENT == "production"
 
     def get_database_name(self) -> str:
         """

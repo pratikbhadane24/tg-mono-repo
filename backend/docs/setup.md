@@ -220,11 +220,17 @@ BASE_URL=https://telegram.yourdomain.com
 MONGODB_URI=mongodb://localhost:27017/telegram
 # Or for Atlas:
 # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/telegram
+
+# JWT secret key for API authentication (generate with: openssl rand -hex 32)
+JWT_SECRET_KEY=your_secret_key_here_change_this_in_production
 ```
 
 Optional configuration:
 
 ```env
+# JWT algorithm (defaults to HS256)
+JWT_ALGORITHM=HS256
+
 # Invite link expires after 15 minutes (900 seconds)
 INVITE_LINK_TTL_SECONDS=900
 

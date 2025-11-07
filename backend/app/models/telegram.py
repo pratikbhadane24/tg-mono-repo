@@ -54,6 +54,13 @@ class Channel(BaseModel):
     join_model: Literal["invite_link", "join_request"] = Field(
         default="invite_link", description="How users join: invite_link or join_request"
     )
+    # Optional overrides stored per-channel
+    invite_ttl_seconds: int | None = Field(
+        default=None, description="Optional channel-specific invite TTL in seconds"
+    )
+    invite_member_limit: int | None = Field(
+        default=None, description="Optional channel-specific invite member limit"
+    )
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -85,6 +92,12 @@ class Invite(BaseModel):
     invite_link: str = Field(..., description="Telegram invite link URL")
     expire_at: datetime = Field(..., description="When invite link expires")
     member_limit: int = Field(default=1, description="Max members for this invite")
+    # Invite usage / lifecycle fields
+    used: bool = Field(default=False, description="Whether the invite was used")
+    revoked: bool = Field(default=False, description="Whether the invite was revoked")
+    used_by_telegram_user_id: int | None = Field(
+        default=None, description="Telegram user ID who used this invite (optional)"
+    )
     created_at: datetime = Field(default_factory=utcnow)
 
 
