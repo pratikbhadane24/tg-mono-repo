@@ -26,7 +26,7 @@ class TestTelegramBotAPI:
     @pytest.mark.asyncio
     async def test_bot_api_initialization(self, bot_api):
         """Test that bot API initializes correctly."""
-        assert bot_api.token == "test_token_12345"
+        assert bot_api.bot_token == "test_token_12345"
         assert bot_api.base_url == "https://api.telegram.org/bottest_token_12345"
 
     @pytest.mark.asyncio
@@ -38,8 +38,9 @@ class TestTelegramBotAPI:
     async def test_make_request_success(self, bot_api):
         """Test successful API request."""
         mock_response = Mock()
-        mock_response.json = AsyncMock(return_value={"ok": True, "result": {"id": 123}})
-
+        mock_response.status_code = 200
+        mock_response.json = Mock(return_value={"ok": True, "result": {"id": 123}})
+        
         with patch.object(bot_api.client, "post", return_value=mock_response):
             result = await bot_api._make_request("getMe")
             assert result == {"id": 123}
@@ -48,10 +49,11 @@ class TestTelegramBotAPI:
     async def test_make_request_failure(self, bot_api):
         """Test API request failure handling."""
         mock_response = Mock()
-        mock_response.json = AsyncMock(
+        mock_response.status_code = 200
+        mock_response.json = Mock(
             return_value={"ok": False, "description": "Bot token invalid"}
         )
-
+        
         with patch.object(bot_api.client, "post", return_value=mock_response):
             with pytest.raises(Exception, match="Bot token invalid"):
                 await bot_api._make_request("getMe")
@@ -126,23 +128,18 @@ class TestTelegramMembershipService:
     @pytest.mark.asyncio
     async def test_upsert_user_new(self, service, mock_db):
         """Test creating a new user."""
+        inserted_id = ObjectId()
         mock_db.users.find_one = AsyncMock(return_value=None)
         mock_db.users.insert_one = AsyncMock(
-            return_value=MagicMock(inserted_id=ObjectId())
+            return_value=MagicMock(inserted_id=inserted_id)
         )
-        mock_db.users.find_one = AsyncMock(
-            return_value={
-                "_id": ObjectId(),
-                "ext_user_id": "user123",
-                "telegram_user_id": None,
-                "username": None,
-            }
-        )
+        mock_db.audits.insert_one = AsyncMock()
 
         user = await service.upsert_user("user123")
 
         assert user is not None
         assert user.ext_user_id == "user123"
+        assert user.id == inserted_id
 
     @pytest.mark.asyncio
     async def test_get_channel(self, service, mock_db):
@@ -171,21 +168,23 @@ class TestTelegramMembershipService:
         assert channel is None
 
     @pytest.mark.asyncio
-    async def test_ban_member(self, service, mock_bot):
+    async def test_ban_member(self, service, mock_bot, mock_db):
         """Test banning a member."""
         mock_bot.ban_chat_member = AsyncMock(return_value=True)
+        mock_db.audits.insert_one = AsyncMock()
 
-        result = await service.ban_member(chat_id=-1001234567890, user_id=123456)
+        result = await service.ban_member(chat_id=-1001234567890, telegram_user_id=123456)
 
         assert result is True
         mock_bot.ban_chat_member.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_unban_member(self, service, mock_bot):
+    async def test_unban_member(self, service, mock_bot, mock_db):
         """Test unbanning a member."""
         mock_bot.unban_chat_member = AsyncMock(return_value=True)
+        mock_db.audits.insert_one = AsyncMock()
 
-        result = await service.unban_member(chat_id=-1001234567890, user_id=123456)
+        result = await service.unban_member(chat_id=-1001234567890, telegram_user_id=123456)
 
         assert result is True
         mock_bot.unban_chat_member.assert_called_once()
@@ -193,7 +192,7 @@ class TestTelegramMembershipService:
     @pytest.mark.asyncio
     async def test_log_audit(self, service, mock_db):
         """Test audit logging."""
-        mock_db.audit_log.insert_one = AsyncMock()
+        mock_db.audits.insert_one = AsyncMock()
 
         await service.log_audit(
             action="TEST_ACTION",
@@ -202,8 +201,8 @@ class TestTelegramMembershipService:
             meta={"test": "data"},
         )
 
-        mock_db.audit_log.insert_one.assert_called_once()
-        call_args = mock_db.audit_log.insert_one.call_args[0][0]
+        mock_db.audits.insert_one.assert_called_once()
+        call_args = mock_db.audits.insert_one.call_args[0][0]
         assert call_args["action"] == "TEST_ACTION"
         assert call_args["chat_id"] == -1001234567890
 
@@ -225,7 +224,7 @@ class TestScheduler:
 
         assert hasattr(MembershipScheduler, "start")
         assert hasattr(MembershipScheduler, "stop")
-        assert hasattr(MembershipScheduler, "_run_check")
+        assert hasattr(MembershipScheduler, "process_expired_memberships")
 
 
 class TestDatabaseOperations:
