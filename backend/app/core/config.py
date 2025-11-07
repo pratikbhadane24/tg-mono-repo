@@ -96,6 +96,39 @@ class TelegramConfig(BaseSettings):
         default="HS256",
         description="Algorithm for JWT token encoding/decoding",
     )
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=30,
+        description="Access token expiration time in minutes",
+    )
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=7,
+        description="Refresh token expiration time in days",
+    )
+
+    # Environment configuration (for cookie security)
+    ENVIRONMENT: Literal["development", "production"] = Field(
+        default="development",
+        description="Application environment (affects cookie security settings)",
+    )
+
+    # Stripe configuration (for seller payments)
+    STRIPE_SECRET_KEY: str | None = Field(
+        default=None,
+        description="Stripe secret key for platform payments",
+    )
+    STRIPE_PUBLISHABLE_KEY: str | None = Field(
+        default=None,
+        description="Stripe publishable key for platform payments",
+    )
+    STRIPE_WEBHOOK_SECRET: str | None = Field(
+        default=None,
+        description="Stripe webhook signing secret",
+    )
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.ENVIRONMENT == "production"
 
     def get_database_name(self) -> str:
         """

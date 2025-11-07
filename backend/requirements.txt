@@ -17,6 +17,14 @@ pydantic>=2.12.3
 pydantic-settings>=2.11.0
 python-dotenv>=1.1.1
 
+# Authentication and security (for seller management platform)
+passlib[bcrypt]>=1.7.4  # Password hashing
+python-jose[cryptography]>=3.5.0  # JWT tokens
+bcrypt>=5.0.0  # Password hashing backend
+
+# Payment processing (for seller management platform)
+stripe>=13.2.0  # Stripe integration
+
 # Testing dependencies
 pytest>=8.0.0
 pytest-asyncio>=0.23.0

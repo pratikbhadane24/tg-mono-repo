@@ -3,6 +3,13 @@ Data models for the Telegram service.
 """
 
 from .responses import ErrorDetail, StandardResponse
+from .seller import (
+    PaymentRecord,
+    Seller,
+    SellerChannel,
+    SellerSubscription,
+    WebhookConfig,
+)
 from .telegram import (
     Audit,
     Channel,
@@ -23,4 +30,10 @@ __all__ = [
     "utcnow",
     "StandardResponse",
     "ErrorDetail",
+    # Seller models
+    "Seller",
+    "SellerSubscription",
+    "PaymentRecord",
+    "WebhookConfig",
+    "SellerChannel",
 ]
