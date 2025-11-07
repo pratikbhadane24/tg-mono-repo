@@ -39,11 +39,17 @@ def get_period_end(period_days: int) -> datetime:
     This gives the user access for the full duration of all requested days.
 
     Args:
-        period_days: Number of days for the period
+        period_days: Number of days for the period (must be positive)
 
     Returns:
         UTC datetime representing end of period (23:59:59 UTC)
+
+    Raises:
+        ValueError: If period_days is not positive
     """
+    if period_days < 1:
+        raise ValueError(f"period_days must be positive, got {period_days}")
+
     # period_days=1 means access for today (ends at 23:59:59 today)
     # period_days=30 means access for 30 days (ends at 23:59:59 on day 30)
     return get_utc_end_of_day(period_days - 1)

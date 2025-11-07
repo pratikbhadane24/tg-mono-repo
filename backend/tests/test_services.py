@@ -26,7 +26,7 @@ class TestTelegramBotAPI:
     @pytest.mark.asyncio
     async def test_bot_api_initialization(self, bot_api):
         """Test that bot API initializes correctly."""
-        assert bot_api.token == "test_token_12345"
+        assert bot_api.bot_token == "test_token_12345"
         assert bot_api.base_url == "https://api.telegram.org/bottest_token_12345"
 
     @pytest.mark.asyncio
@@ -38,7 +38,8 @@ class TestTelegramBotAPI:
     async def test_make_request_success(self, bot_api):
         """Test successful API request."""
         mock_response = Mock()
-        mock_response.json = AsyncMock(return_value={"ok": True, "result": {"id": 123}})
+        mock_response.status_code = 200
+        mock_response.json = Mock(return_value={"ok": True, "result": {"id": 123}})
 
         with patch.object(bot_api.client, "post", return_value=mock_response):
             result = await bot_api._make_request("getMe")
@@ -48,9 +49,8 @@ class TestTelegramBotAPI:
     async def test_make_request_failure(self, bot_api):
         """Test API request failure handling."""
         mock_response = Mock()
-        mock_response.json = AsyncMock(
-            return_value={"ok": False, "description": "Bot token invalid"}
-        )
+        mock_response.status_code = 200
+        mock_response.json = Mock(return_value={"ok": False, "description": "Bot token invalid"})
 
         with patch.object(bot_api.client, "post", return_value=mock_response):
             with pytest.raises(Exception, match="Bot token invalid"):
@@ -126,23 +126,16 @@ class TestTelegramMembershipService:
     @pytest.mark.asyncio
     async def test_upsert_user_new(self, service, mock_db):
         """Test creating a new user."""
+        inserted_id = ObjectId()
         mock_db.users.find_one = AsyncMock(return_value=None)
-        mock_db.users.insert_one = AsyncMock(
-            return_value=MagicMock(inserted_id=ObjectId())
-        )
-        mock_db.users.find_one = AsyncMock(
-            return_value={
-                "_id": ObjectId(),
-                "ext_user_id": "user123",
-                "telegram_user_id": None,
-                "username": None,
-            }
-        )
+        mock_db.users.insert_one = AsyncMock(return_value=MagicMock(inserted_id=inserted_id))
+        mock_db.audits.insert_one = AsyncMock()
 
         user = await service.upsert_user("user123")
 
         assert user is not None
         assert user.ext_user_id == "user123"
+        assert user.id == inserted_id
 
     @pytest.mark.asyncio
     async def test_get_channel(self, service, mock_db):
@@ -171,21 +164,23 @@ class TestTelegramMembershipService:
         assert channel is None
 
     @pytest.mark.asyncio
-    async def test_ban_member(self, service, mock_bot):
+    async def test_ban_member(self, service, mock_bot, mock_db):
         """Test banning a member."""
         mock_bot.ban_chat_member = AsyncMock(return_value=True)
+        mock_db.audits.insert_one = AsyncMock()
 
-        result = await service.ban_member(chat_id=-1001234567890, user_id=123456)
+        result = await service.ban_member(chat_id=-1001234567890, telegram_user_id=123456)
 
         assert result is True
         mock_bot.ban_chat_member.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_unban_member(self, service, mock_bot):
+    async def test_unban_member(self, service, mock_bot, mock_db):
         """Test unbanning a member."""
         mock_bot.unban_chat_member = AsyncMock(return_value=True)
+        mock_db.audits.insert_one = AsyncMock()
 
-        result = await service.unban_member(chat_id=-1001234567890, user_id=123456)
+        result = await service.unban_member(chat_id=-1001234567890, telegram_user_id=123456)
 
         assert result is True
         mock_bot.unban_chat_member.assert_called_once()
@@ -193,7 +188,7 @@ class TestTelegramMembershipService:
     @pytest.mark.asyncio
     async def test_log_audit(self, service, mock_db):
         """Test audit logging."""
-        mock_db.audit_log.insert_one = AsyncMock()
+        mock_db.audits.insert_one = AsyncMock()
 
         await service.log_audit(
             action="TEST_ACTION",
@@ -202,8 +197,8 @@ class TestTelegramMembershipService:
             meta={"test": "data"},
         )
 
-        mock_db.audit_log.insert_one.assert_called_once()
-        call_args = mock_db.audit_log.insert_one.call_args[0][0]
+        mock_db.audits.insert_one.assert_called_once()
+        call_args = mock_db.audits.insert_one.call_args[0][0]
         assert call_args["action"] == "TEST_ACTION"
         assert call_args["chat_id"] == -1001234567890
 
@@ -225,7 +220,7 @@ class TestScheduler:
 
         assert hasattr(MembershipScheduler, "start")
         assert hasattr(MembershipScheduler, "stop")
-        assert hasattr(MembershipScheduler, "_run_check")
+        assert hasattr(MembershipScheduler, "process_expired_memberships")
 
 
 class TestDatabaseOperations:
@@ -244,3 +239,210 @@ class TestDatabaseOperations:
         from app.services import initialize_telegram_database
 
         assert callable(initialize_telegram_database)
+
+
+class TestTelegramMembershipServiceEdgeCases:
+    """Edge case tests for TelegramMembershipService."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create a mock database."""
+        db = MagicMock()
+        db.users = MagicMock()
+        db.channels = MagicMock()
+        db.memberships = MagicMock()
+        db.invites = MagicMock()
+        db.audits = MagicMock()
+        return db
+
+    @pytest.fixture
+    def mock_bot(self):
+        """Create a mock bot API."""
+        bot = MagicMock(spec=TelegramBotAPI)
+        return bot
+
+    @pytest.fixture
+    def service(self, mock_db, mock_bot):
+        """Create a membership service instance."""
+        return TelegramMembershipService(mock_db, mock_bot)
+
+    @pytest.mark.asyncio
+    async def test_upsert_user_existing(self, service, mock_db):
+        """Test updating an existing user."""
+        existing_user_id = ObjectId()
+        mock_db.users.find_one = AsyncMock(
+            return_value={
+                "_id": existing_user_id,
+                "ext_user_id": "user123",
+                "telegram_user_id": 123456,
+                "username": "testuser",
+            }
+        )
+        mock_db.users.update_one = AsyncMock()
+
+        user = await service.upsert_user("user123")
+
+        assert user is not None
+        assert user.ext_user_id == "user123"
+        assert user.id == existing_user_id
+        mock_db.users.update_one.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_link_telegram_user_not_found(self, service, mock_db):
+        """Test linking telegram user when user doesn't exist."""
+        mock_db.users.find_one = AsyncMock(return_value=None)
+
+        result = await service.link_telegram_user("nonexistent", 123456, "testuser")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_link_telegram_user_success(self, service, mock_db):
+        """Test successfully linking telegram user."""
+        user_id = ObjectId()
+        mock_db.users.find_one = AsyncMock(
+            return_value={"_id": user_id, "ext_user_id": "user123"}
+        )
+        mock_db.users.update_one = AsyncMock()
+        mock_db.audits.insert_one = AsyncMock()
+
+        result = await service.link_telegram_user("user123", 123456, "testuser")
+
+        assert result is not None
+        assert result.telegram_user_id == 123456
+        assert result.telegram_username == "testuser"
+
+    @pytest.mark.asyncio
+    async def test_get_active_membership_found(self, service, mock_db):
+        """Test getting active membership when it exists."""
+        from datetime import UTC, datetime, timedelta
+        user_id = ObjectId()
+        chat_id = -1001234567890
+        membership_doc = {
+            "_id": ObjectId(),
+            "user_id": user_id,
+            "chat_id": chat_id,
+            "status": "active",
+            "current_period_end": datetime.now(UTC) + timedelta(days=30),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        mock_db.memberships.find_one = AsyncMock(return_value=membership_doc)
+
+        membership = await service.get_active_membership(user_id, chat_id)
+
+        assert membership is not None
+        assert membership.status == "active"
+
+    @pytest.mark.asyncio
+    async def test_get_active_membership_not_found(self, service, mock_db):
+        """Test getting active membership when none exists."""
+        user_id = ObjectId()
+        chat_id = -1001234567890
+        mock_db.memberships.find_one = AsyncMock(return_value=None)
+
+        membership = await service.get_active_membership(user_id, chat_id)
+
+        assert membership is None
+
+    @pytest.mark.asyncio
+    async def test_ban_member_error_handling(self, service, mock_bot, mock_db):
+        """Test ban member error handling."""
+        mock_bot.ban_chat_member = AsyncMock(side_effect=Exception("API Error"))
+        mock_db.audits.insert_one = AsyncMock()
+
+        result = await service.ban_member(chat_id=-1001234567890, telegram_user_id=123456)
+
+        # Should return False on error
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_unban_member_error_handling(self, service, mock_bot, mock_db):
+        """Test unban member error handling."""
+        mock_bot.unban_chat_member = AsyncMock(side_effect=Exception("API Error"))
+        mock_db.audits.insert_one = AsyncMock()
+
+        result = await service.unban_member(chat_id=-1001234567890, telegram_user_id=123456)
+
+        # Should return False on error
+        assert result is False
+
+
+class TestTelegramBotAPIEdgeCases:
+    """Edge case tests for TelegramBotAPI."""
+
+    @pytest.fixture
+    def bot_api(self):
+        """Create a TelegramBotAPI instance for testing."""
+        return TelegramBotAPI("test_token_12345")
+
+    @pytest.mark.asyncio
+    async def test_make_request_http_error(self, bot_api):
+        """Test _make_request with HTTP error."""
+        import httpx
+
+        with patch.object(
+            bot_api.client, "post", side_effect=httpx.HTTPError("Connection failed")
+        ):
+            with pytest.raises(httpx.HTTPError):
+                await bot_api._make_request("getMe")
+
+    @pytest.mark.asyncio
+    async def test_make_request_non_200_status(self, bot_api):
+        """Test _make_request with non-200 status code."""
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad Request"
+        mock_response.json = Mock(return_value={"ok": False, "description": "Bad Request"})
+
+        with patch.object(bot_api.client, "post", return_value=mock_response):
+            with pytest.raises(Exception, match="Bad Request"):
+                await bot_api._make_request("getMe")
+
+    @pytest.mark.asyncio
+    async def test_create_invite_link_with_all_params(self, bot_api):
+        """Test creating invite link with all parameters."""
+        from datetime import UTC, datetime, timedelta
+
+        mock_result = {"invite_link": "https://t.me/+abc123", "expire_date": 1234567890}
+
+        with patch.object(bot_api, "_make_request", return_value=mock_result):
+            result = await bot_api.create_chat_invite_link(
+                chat_id=-1001234567890,
+                expire_date=datetime.now(UTC) + timedelta(hours=24),
+                member_limit=1,
+                creates_join_request=True,
+            )
+            assert "invite_link" in result
+
+
+class TestSchedulerEdgeCases:
+    """Edge case tests for MembershipScheduler."""
+
+    @pytest.mark.asyncio
+    async def test_scheduler_initialization(self):
+        """Test scheduler can be initialized."""
+        from app.services.scheduler import MembershipScheduler
+
+        mock_db = MagicMock()
+        mock_bot = MagicMock()
+
+        scheduler = MembershipScheduler(mock_db, mock_bot)
+
+        assert scheduler is not None
+        assert scheduler.db is mock_db
+        assert scheduler.bot is mock_bot
+        assert scheduler.running is False
+
+    @pytest.mark.asyncio
+    async def test_scheduler_has_service(self):
+        """Test scheduler creates TelegramMembershipService."""
+        from app.services.scheduler import MembershipScheduler
+
+        mock_db = MagicMock()
+        mock_bot = MagicMock()
+
+        scheduler = MembershipScheduler(mock_db, mock_bot)
+
+        assert hasattr(scheduler, "service")
+        assert scheduler.service is not None

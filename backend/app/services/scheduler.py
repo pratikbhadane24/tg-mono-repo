@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models import utcnow
 from app.core.config import get_telegram_config
+from app.models import utcnow
 
 from .bot_api import TelegramBotAPI
 from .telegram_service import TelegramMembershipService

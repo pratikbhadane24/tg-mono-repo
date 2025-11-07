@@ -88,7 +88,9 @@ class PaymentRecord(BaseModel):
     seller_id: ObjectId = Field(..., description="Reference to Seller")
 
     # Payment details
-    stripe_payment_intent_id: str | None = Field(default=None, description="Stripe payment intent ID")
+    stripe_payment_intent_id: str | None = Field(
+        default=None, description="Stripe payment intent ID"
+    )
     stripe_charge_id: str | None = Field(default=None, description="Stripe charge ID")
     amount: int = Field(..., description="Amount in cents")
     currency: str = Field(default="usd", description="Currency code")
@@ -116,13 +118,17 @@ class WebhookConfig(BaseModel):
     # Webhook details
     url: str = Field(..., description="Webhook URL")
     events: list[str] = Field(default_factory=list, description="List of events to subscribe to")
-    secret: str | None = Field(default=None, description="Webhook secret for signature verification")
+    secret: str | None = Field(
+        default=None, description="Webhook secret for signature verification"
+    )
     is_active: bool = Field(default=True, description="Whether webhook is active")
 
     # Metadata
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
-    last_triggered: datetime | None = Field(default=None, description="Last time webhook was triggered")
+    last_triggered: datetime | None = Field(
+        default=None, description="Last time webhook was triggered"
+    )
 
 
 class SellerChannel(BaseModel):
