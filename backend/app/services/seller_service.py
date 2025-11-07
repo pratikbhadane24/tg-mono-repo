@@ -297,7 +297,7 @@ class SellerService:
         stripe_payment_intent_id: str | None = None,
         used_seller_stripe: bool = False,
         metadata: dict | None = None,
-    ) -> Payment:
+    ) -> PaymentRecord:
         """Record a payment transaction."""
         payment = PaymentRecord(
             seller_id=seller_id,
@@ -319,7 +319,7 @@ class SellerService:
 
         return payment
 
-    async def get_seller_payments(self, seller_id: ObjectId, limit: int = 100) -> list[Payment]:
+    async def get_seller_payments(self, seller_id: ObjectId, limit: int = 100) -> list[PaymentRecord]:
         """Get payment history for a seller."""
         payments = []
         async for doc in (
