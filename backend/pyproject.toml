@@ -89,3 +89,9 @@ line-length = 100
 target-version = ['py313']
 include = '\.pyi?$'
 
+[dependency-groups]
+test = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+]
+
