@@ -9,9 +9,9 @@ from typing import Any
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.bot_api import TelegramBotAPI
 from app.models import Audit, Channel, Invite, Membership, TelegramUser, utcnow
-from config.settings import get_telegram_config
+from app.services.bot_api import TelegramBotAPI
+from app.core.config import get_telegram_config
 
 logger = logging.getLogger(__name__)
 
@@ -257,9 +257,17 @@ class TelegramMembershipService:
 
     async def mark_invite_used(self, invite_link: str, chat_id: int, telegram_user_id: int):
         """Mark an invite as used."""
+        # Record that this invite was used and who used it. Also set an updated_at timestamp
+        # This helps mapping ephemeral invite links back to the Telegram user who accepted them
         await self.db.invites.update_one(
             {"invite_link": invite_link, "chat_id": chat_id},
-            {"$set": {"used": True, "updated_at": utcnow()}},
+            {
+                "$set": {
+                    "used": True,
+                    "used_by_telegram_user_id": telegram_user_id,
+                    "updated_at": utcnow(),
+                }
+            },
         )
 
         await self.log_audit(

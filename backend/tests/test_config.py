@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from config.settings import TelegramConfig
+from app.core.config import TelegramConfig
 
 
 class TestTelegramConfig:
@@ -22,6 +22,7 @@ class TestTelegramConfig:
             "TELEGRAM_WEBHOOK_SECRET_PATH": "test_secret_path",
             "BASE_URL": "https://test.example.com",
             "MONGODB_URI": "mongodb://localhost:27017/test_db",
+            "JWT_SECRET_KEY": "test_jwt_secret_for_unit_tests",
         }
 
     def test_config_loads_from_env(self, test_env):

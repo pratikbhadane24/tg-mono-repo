@@ -179,5 +179,4 @@ class TelegramBotAPI:
 
         if parse_mode:
             params["parse_mode"] = parse_mode
-
         return await self._make_request("sendMessage", **params)

@@ -16,8 +16,8 @@ import sys
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from app.core.config import get_telegram_config
 from app.models import utcnow
-from config.settings import get_telegram_config
 
 
 async def add_channel(

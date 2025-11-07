@@ -16,6 +16,7 @@ def test_env():
         "TELEGRAM_WEBHOOK_SECRET_PATH": "test_secret_path",
         "BASE_URL": "https://test.example.com",
         "MONGODB_URI": "mongodb://localhost:27017/test_telegram",
+        "JWT_SECRET_KEY": "test_jwt_secret_key_for_testing_only_change_in_production",
     }
 
     with patch.dict(os.environ, test_env_vars):

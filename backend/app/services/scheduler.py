@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models import utcnow
-from config.settings import get_telegram_config
+from app.core.config import get_telegram_config
 
 from .bot_api import TelegramBotAPI
-from .service import TelegramMembershipService
+from .telegram_service import TelegramMembershipService
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +63,55 @@ class MembershipScheduler:
 
                 # Get user's telegram_user_id
                 user_doc = await self.db.users.find_one({"_id": user_id})
-                if not user_doc or not user_doc.get("telegram_user_id"):
-                    logger.warning(f"User {user_id} has no telegram_user_id, skipping ban")
+                telegram_user_id = None
+
+                if not user_doc:
+                    logger.warning(f"User {user_id} not found in users collection, skipping ban")
                     await self.service.expire_membership(membership_id)
                     continue
 
-                telegram_user_id = user_doc["telegram_user_id"]
+                # If user document exists but has no telegram_user_id, try to attribute via used invites
+                if not user_doc.get("telegram_user_id"):
+                    logger.info(
+                        f"User {user_id} has no telegram_user_id, attempting to find used invite"
+                    )
+                    try:
+                        invite_doc = await self.db.invites.find_one(
+                            {
+                                "user_id": user_id,
+                                "chat_id": chat_id,
+                                "used": True,
+                                "used_by_telegram_user_id": {"$exists": True},
+                            }
+                        )
+                        if invite_doc and invite_doc.get("used_by_telegram_user_id"):
+                            telegram_user_id = invite_doc.get("used_by_telegram_user_id")
+                            logger.info(
+                                f"Attributed invite used_by={telegram_user_id} for user {user_id} chat {chat_id}"
+                            )
+                            # Try to persist this mapping back to the user document for future runs
+                            try:
+                                await self.service.link_telegram_user(
+                                    user_doc.get("ext_user_id"), telegram_user_id, None
+                                )
+                                # refresh user_doc
+                                user_doc = await self.db.users.find_one({"_id": user_id})
+                            except Exception:
+                                # Non-fatal: proceed with the found telegram_user_id even if link fails
+                                pass
+                        else:
+                            logger.warning(
+                                f"No used invite found for user {user_id} chat {chat_id}, skipping ban"
+                            )
+                            await self.service.expire_membership(membership_id)
+                            continue
+                    except Exception as e:
+                        logger.warning(f"Error finding invite attribution: {e}")
+                        await self.service.expire_membership(membership_id)
+                        continue
+
+                else:
+                    telegram_user_id = user_doc["telegram_user_id"]
 
                 # Ban the user
                 logger.info(f"Banning user {telegram_user_id} from chat {chat_id}")
@@ -91,14 +134,8 @@ class MembershipScheduler:
         # Update last run time
         await self.update_last_run_time(now)
 
-        await self.service.log_audit(
-            action="SCHEDULER_RUN",
-            meta={
-                "processed": len(expired_memberships),
-                "last_run": last_run.isoformat(),
-                "current_run": now.isoformat(),
-            },
-        )
+        # NOTE: removed scheduler run audit entry to avoid cluttering audits with frequent scheduler metadata.
+        # Audits for individual actions (BAN_MEMBER, EXPIRE_MEMBERSHIP, etc.) are still recorded by the service.
 
     async def run_forever(self):
         """Run the scheduler loop forever."""
