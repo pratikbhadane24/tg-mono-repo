@@ -79,6 +79,13 @@ async def lifespan(app: FastAPI):
         # Set manager for routes to use
         telegram.set_telegram_manager(_telegram_manager)
 
+        # Initialize seller service
+        from app.api.endpoints import sellers
+        from app.services import SellerService
+
+        seller_service = SellerService(db)
+        sellers.set_seller_service(seller_service)
+
         logging.info("Telegram service started successfully")
     except Exception as e:
         logging.error(f"Error starting Telegram service: {e}")
@@ -108,3 +115,8 @@ app = FastAPI(
 # Include routers
 app.include_router(health.router, tags=["Health"])
 app.include_router(telegram.get_telegram_router(), tags=["Telegram"])
+
+# Include seller management router
+from app.api.endpoints import sellers
+
+app.include_router(sellers.router, tags=["Sellers"])
