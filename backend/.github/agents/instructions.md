@@ -4,52 +4,66 @@ This document provides guidance for AI agents working on this repository.
 
 ## Repository Structure
 
+**Current Structure (Handler-Backend Pattern):**
+
 ```
-tg-paid-subscriber-service/
-├── app/                    # Core application logic
+ra-tg-service/
+├── app/                      # Main application package
+│   ├── api/                  # API layer
+│   │   ├── __init__.py
+│   │   └── endpoints/        # API endpoints
+│   │       ├── __init__.py
+│   │       ├── health.py     # Health check endpoints
+│   │       └── telegram.py   # Telegram API endpoints
+│   ├── core/                 # Core utilities and configuration
+│   │   ├── __init__.py
+│   │   ├── auth.py           # JWT authentication utilities
+│   │   └── config.py         # Configuration management (TelegramConfig)
+│   ├── models/               # Data models
+│   │   ├── __init__.py
+│   │   ├── telegram.py       # Telegram domain models (User, Channel, etc.)
+│   │   └── responses.py      # API response models
+│   ├── services/             # Business logic services
+│   │   ├── __init__.py
+│   │   ├── bot_api.py        # Telegram Bot API wrapper
+│   │   ├── telegram_service.py  # Membership management service
+│   │   ├── scheduler.py      # Background task scheduler
+│   │   └── database.py       # Database operations and indexes
+│   ├── __init__.py           # Package init (exports TelegramManager)
+│   ├── main.py               # FastAPI application definition
+│   ├── manager.py            # Service coordinator
+│   ├── cli.py                # Channel management CLI
+│   └── timezone_utils.py     # Timezone utilities
+├── tests/                    # Comprehensive test suite
 │   ├── __init__.py
-│   ├── __main__.py        # CLI entry point
-│   ├── bot_api.py         # Telegram Bot API wrapper
-│   ├── cli.py             # Channel management CLI
-│   ├── database.py        # Database operations
-│   ├── manager.py         # Service coordinator
-│   ├── models.py          # Pydantic data models
-│   ├── scheduler.py       # Background task scheduler
-│   └── service.py         # Business logic layer
-├── config/                 # Configuration management
-│   ├── __init__.py
-│   └── settings.py        # Environment and settings
-├── routers/                # FastAPI routes
-│   ├── __init__.py
-│   └── telegram.py        # API endpoints
-├── tests/                  # Test suite
-│   ├── __init__.py
-│   ├── test_api.py        # API endpoint tests
-│   ├── test_config.py     # Configuration tests
-│   ├── test_models.py     # Model validation tests
-│   └── test_telegram_service.py  # Legacy tests (deprecated)
-├── docs/                   # Documentation
-│   ├── api.md             # API documentation
-│   ├── setup.md           # Setup guide
-│   └── user-guide.md      # User guide
-├── scripts/                # Utility scripts
-│   └── pre_push_check.py  # Pre-push validation
-├── logs/                   # Change logs and validation results
+│   ├── conftest.py           # Pytest fixtures
+│   ├── test_auth.py          # Authentication tests
+│   ├── test_config.py        # Configuration tests
+│   └── test_models.py        # Model validation tests
+├── docs/                     # Documentation
+│   ├── api.md                # API reference
+│   ├── setup.md              # Setup guide
+│   └── user-guide.md         # User guide
+├── scripts/                  # Utility scripts
+│   └── pre_push_check.py     # Pre-push validation
 ├── .github/
 │   └── agents/
-│       └── instructions.md # This file
-├── main.py                 # FastAPI application entry point
-├── Dockerfile              # Docker build (optimized with uv)
-├── docker-compose.yml      # Docker Compose configuration
-├── requirements.txt        # Python dependencies
-├── pyproject.toml          # Project configuration
-├── .env.example            # Environment template
-└── README.md               # Main documentation
-
-# Deprecated/Old Structure (DO NOT USE):
-└── telegram/               # Old folder - being phased out
-    └── ...                 # Do not add new code here
+│       └── instructions.md   # This file
+├── main.py                   # Entry point (imports from app.main)
+├── Dockerfile                # Docker build
+├── docker-compose.yml        # Docker Compose configuration
+├── requirements.txt          # Python dependencies
+├── pyproject.toml            # Project configuration
+├── .env.example              # Environment template
+└── README.md                 # Main documentation
 ```
+
+**Deprecated Structure (DO NOT USE):**
+- `config/` folder - moved to `app/core/`
+- `routers/` folder - moved to `app/api/endpoints/`
+- `utils/` folder - moved to `app/core/`
+- Old `app/*.py` files - reorganized into `app/services/`, `app/models/`, etc.
+
 
 ## Development Workflow
 
@@ -62,8 +76,16 @@ tg-paid-subscriber-service/
 
 ### Making Changes
 
-1. **Use the new structure**: All new code goes in `app/`, `routers/`, or `config/`
-2. **Update imports**: Use absolute imports (`from app.models import ...`)
+1. **Use the handler-backend structure**: All new code goes in the appropriate `app/` subdirectory
+   - API endpoints → `app/api/endpoints/`
+   - Business logic → `app/services/`
+   - Data models → `app/models/`
+   - Configuration → `app/core/`
+2. **Update imports**: Use absolute imports:
+   - `from app.models import TelegramUser, Channel`
+   - `from app.services import TelegramBotAPI, TelegramMembershipService`
+   - `from app.core.config import get_telegram_config`
+   - `from app.core.auth import get_current_user`
 3. **Add tests**: Every new function should have corresponding tests
 4. **Update docs**: Keep `docs/` synchronized with code changes
 5. **Log changes**: Major changes should be noted in `logs/CHANGELOG.md`
@@ -133,11 +155,45 @@ await manager.shutdown()
 All configuration is managed via environment variables:
 
 ```python
-from config.settings import get_telegram_config
+from app.core.config import get_telegram_config
 
 config = get_telegram_config()
 token = config.TELEGRAM_BOT_TOKEN
+jwt_secret = config.JWT_SECRET_KEY
 ```
+
+**Required Environment Variables:**
+- `TELEGRAM_BOT_TOKEN`: Bot token from @BotFather
+- `TELEGRAM_WEBHOOK_SECRET_PATH`: Secret path for webhooks
+- `BASE_URL`: Public HTTPS URL
+- `MONGODB_URI`: MongoDB connection string
+- `JWT_SECRET_KEY`: Secret key for JWT authentication
+
+### Authentication
+
+The service uses JWT tokens for API authentication:
+
+```python
+from app.core.auth import get_current_user
+
+# In route handlers
+@router.post("/api/endpoint")
+async def endpoint(
+    current_user: dict = Depends(get_current_user),
+):
+    # current_user is guaranteed to be valid here (dependency raises 401 if not)
+    # Process authenticated request
+```
+
+**Protected Endpoints:**
+- `POST /api/telegram/grant-access`
+- `POST /api/telegram/channels`
+- `POST /api/telegram/force-remove`
+
+**Token can be provided via:**
+1. Authorization header: `Authorization: Bearer <token>`
+2. Cookie: `access_token=<token>`
+3. Custom header: `x-access-token: <token>`
 
 ### Database Models
 
@@ -430,6 +486,10 @@ Example:
 
 ---
 
-**Last Updated**: 2024-11-06
-**Structure Version**: 2.0
-**Deprecated Structure**: telegram/ folder (v1.0)
+---
+
+**Last Updated**: 2024-11-07
+**Structure Version**: 3.0 (Handler-Backend Pattern)
+**Previous Structures**: 
+- v2.x: Flat app/ structure with separate routers/ and config/ folders
+- v1.x: telegram/ folder (fully deprecated)
