@@ -17,8 +17,8 @@ from app.core.auth import (
     get_password_hash,
     verify_password,
 )
-from app.models.telegram import Audit, utcnow
 from app.models.seller import PaymentRecord, Seller, SellerChannel, WebhookConfig
+from app.models.telegram import Audit, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +321,9 @@ class SellerService:
 
         return payment
 
-    async def get_seller_payments(self, seller_id: ObjectId, limit: int = 100) -> list[PaymentRecord]:
+    async def get_seller_payments(
+        self, seller_id: ObjectId, limit: int = 100
+    ) -> list[PaymentRecord]:
         """Get payment history for a seller."""
         payments = []
         async for doc in (

@@ -50,9 +50,9 @@ def get_telegram_bot() -> TelegramBotAPI:
 class GrantAccessRequest(BaseModel):
     """Request model for granting access."""
 
-    ext_user_id: str = Field(..., description="External user ID from payment system")
+    ext_user_id: str = Field(..., min_length=1, description="External user ID from payment system")
     chat_ids: list[int] = Field(..., description="List of chat IDs to grant access to")
-    period_days: int = Field(..., description="Number of days of access")
+    period_days: int = Field(..., gt=0, description="Number of days of access (must be positive)")
     ref: str | None = Field(default=None, description="Payment reference ID")
 
 

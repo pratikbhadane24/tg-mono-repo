@@ -17,7 +17,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api.endpoints import health, telegram
+from app.api.endpoints import health, sellers, telegram
 from app.core.config import get_telegram_config
 from app.manager import TelegramManager
 
@@ -116,8 +116,4 @@ app = FastAPI(
 # Include routers
 app.include_router(health.router, tags=["Health"])
 app.include_router(telegram.get_telegram_router(), tags=["Telegram"])
-
-# Include seller management router
-from app.api.endpoints import sellers
-
 app.include_router(sellers.router, tags=["Sellers"])

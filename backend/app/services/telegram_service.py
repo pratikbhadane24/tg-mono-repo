@@ -9,9 +9,9 @@ from typing import Any
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.core.config import get_telegram_config
 from app.models import Audit, Channel, Invite, Membership, TelegramUser, utcnow
 from app.services.bot_api import TelegramBotAPI
-from app.core.config import get_telegram_config
 
 logger = logging.getLogger(__name__)
 

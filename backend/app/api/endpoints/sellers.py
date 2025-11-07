@@ -19,7 +19,7 @@ from app.core.auth import (
     verify_api_key,
 )
 from app.core.config import get_telegram_config
-from app.models import Seller, SellerChannel, StandardResponse
+from app.models import Seller, StandardResponse
 from app.services import SellerService
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ async def get_current_seller(
     service: SellerService = Depends(get_seller_service),
 ) -> Seller:
     """Dependency: Get current authenticated seller from cookie, token or API key.
-    
+
     Checks in order:
     1. API key (X-API-Key header)
     2. Cookie (access_token)
@@ -207,9 +207,7 @@ async def register(
 
         # Generate tokens for immediate login after registration
         access_token = create_access_token(data={"sub": str(seller.id), "email": seller.email})
-        refresh_token = create_refresh_token(
-            data={"sub": str(seller.id), "email": seller.email}
-        )
+        refresh_token = create_refresh_token(data={"sub": str(seller.id), "email": seller.email})
 
         # Get environment-aware cookie settings
         cookie_settings = _get_cookie_settings()

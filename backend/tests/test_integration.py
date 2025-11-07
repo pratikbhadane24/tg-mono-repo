@@ -305,6 +305,6 @@ class TestApplicationStartup:
         # lifespan is decorated with @asynccontextmanager which wraps it
         # We just need to verify it's callable and can be used as a context manager
         import inspect
-        
+
         # The decorator makes it a regular function that returns an async generator
         assert inspect.isfunction(lifespan)

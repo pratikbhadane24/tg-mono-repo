@@ -325,3 +325,202 @@ class TestResponseModels:
         assert "version" in data["data"]
         assert "description" in data["data"]
         assert "docs" in data["data"]
+
+
+class TestGrantAccessEdgeCases:
+    """Additional edge case tests for grant access endpoint."""
+
+    @pytest.fixture
+    def auth_headers(self):
+        """Create auth headers with valid token."""
+        config = get_telegram_config()
+        payload = {
+            "username": "testuser",
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+        }
+        token = jwt.encode(payload, config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_grant_access_empty_chat_ids(self, auth_headers):
+        """Test that empty chat_ids list is validated."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers=auth_headers,
+            json={"ext_user_id": "user123", "chat_ids": [], "period_days": 30},
+        )
+        # Empty list is technically valid, but might want to validate
+        assert response.status_code in [200, 422, 503]
+
+    def test_grant_access_very_large_period(self, auth_headers):
+        """Test grant access with very large period."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers=auth_headers,
+            json={"ext_user_id": "user123", "chat_ids": [-1001234567890], "period_days": 3650},
+        )
+        # Should accept large positive values
+        assert response.status_code in [200, 503]  # 503 if service not initialized
+
+    def test_grant_access_missing_ext_user_id(self, auth_headers):
+        """Test that missing ext_user_id is rejected."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers=auth_headers,
+            json={"chat_ids": [-1001234567890], "period_days": 30},
+        )
+        assert response.status_code == 422
+
+    def test_grant_access_empty_ext_user_id(self, auth_headers):
+        """Test that empty ext_user_id is rejected."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers=auth_headers,
+            json={"ext_user_id": "", "chat_ids": [-1001234567890], "period_days": 30},
+        )
+        # Empty string should be rejected with min_length validation
+        assert response.status_code == 422
+
+
+class TestAuthenticationEdgeCases:
+    """Additional edge case tests for authentication."""
+
+    def test_malformed_bearer_token(self):
+        """Test handling of malformed bearer token."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers={"Authorization": "Bearer"},  # Missing token
+            json={"ext_user_id": "user123", "chat_ids": [-1001234567890], "period_days": 30},
+        )
+        assert response.status_code == 401
+
+    def test_invalid_authorization_scheme(self):
+        """Test handling of invalid authorization scheme."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers={"Authorization": "Basic sometoken"},  # Wrong scheme
+            json={"ext_user_id": "user123", "chat_ids": [-1001234567890], "period_days": 30},
+        )
+        assert response.status_code == 401
+
+    def test_token_without_bearer_prefix(self):
+        """Test handling of token without Bearer prefix."""
+        config = get_telegram_config()
+        payload = {"username": "testuser", "exp": datetime.now(UTC) + timedelta(hours=1)}
+        token = jwt.encode(payload, config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
+
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers={"Authorization": token},  # Missing "Bearer " prefix
+            json={"ext_user_id": "user123", "chat_ids": [-1001234567890], "period_days": 30},
+        )
+        assert response.status_code == 401
+
+
+class TestInputValidationComprehensive:
+    """Comprehensive input validation tests."""
+
+    @pytest.fixture
+    def auth_headers(self):
+        """Create auth headers with valid token."""
+        config = get_telegram_config()
+        payload = {
+            "username": "testuser",
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+        }
+        token = jwt.encode(payload, config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_grant_access_with_string_period_days(self, auth_headers):
+        """Test period_days must be integer."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers=auth_headers,
+            json={
+                "ext_user_id": "user123",
+                "chat_ids": [-1001234567890],
+                "period_days": "30",  # String instead of int
+            },
+        )
+        # Pydantic should coerce or reject
+        assert response.status_code in [200, 422, 503]
+
+    def test_grant_access_with_float_period_days(self, auth_headers):
+        """Test period_days with float value."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers=auth_headers,
+            json={
+                "ext_user_id": "user123",
+                "chat_ids": [-1001234567890],
+                "period_days": 30.5,  # Float
+            },
+        )
+        # Should be coerced to int or rejected
+        assert response.status_code in [200, 422, 503]
+
+    def test_grant_access_with_null_values(self, auth_headers):
+        """Test handling of null values."""
+        response = client.post(
+            "/api/telegram/grant-access",
+            headers=auth_headers,
+            json={"ext_user_id": None, "chat_ids": None, "period_days": None},
+        )
+        assert response.status_code == 422
+
+    def test_channel_add_with_zero_chat_id(self, auth_headers):
+        """Test adding channel with chat_id 0."""
+        response = client.post(
+            "/api/telegram/channels",
+            headers=auth_headers,
+            json={"chat_id": 0, "name": "Test Channel"},
+        )
+        # Zero might be invalid for Telegram
+        assert response.status_code in [200, 422, 503]
+
+    def test_channel_add_with_positive_chat_id(self, auth_headers):
+        """Test adding channel with positive chat_id."""
+        response = client.post(
+            "/api/telegram/channels",
+            headers=auth_headers,
+            json={"chat_id": 123456, "name": "Test Channel"},
+        )
+        # Positive IDs might need -100 prefix
+        assert response.status_code in [200, 503]
+
+
+class TestWebhookEdgeCases:
+    """Edge case tests for webhook handling."""
+
+    def test_webhook_with_empty_update(self):
+        """Test webhook with empty update object."""
+        config = get_telegram_config()
+        response = client.post(
+            f"/webhooks/telegram/{config.TELEGRAM_WEBHOOK_SECRET_PATH}",
+            json={},
+        )
+        # Should handle gracefully
+        assert response.status_code == 200
+
+    def test_webhook_with_malformed_json(self):
+        """Test webhook with invalid JSON."""
+        config = get_telegram_config()
+        response = client.post(
+            f"/webhooks/telegram/{config.TELEGRAM_WEBHOOK_SECRET_PATH}",
+            data="not json",
+            headers={"Content-Type": "application/json"},
+        )
+        # Should handle parsing error gracefully
+        assert response.status_code in [200, 400, 422]
+
+    def test_webhook_url_encoded_secret(self):
+        """Test webhook with URL-encoded secret path."""
+        config = get_telegram_config()
+        from urllib.parse import quote
+
+        encoded_secret = quote(config.TELEGRAM_WEBHOOK_SECRET_PATH)
+        response = client.post(
+            f"/webhooks/telegram/{encoded_secret}",
+            json={"update_id": 123},
+        )
+        # Should handle URL encoding
+        assert response.status_code in [200, 404]

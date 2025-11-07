@@ -28,22 +28,22 @@ def mock_telegram_manager():
     """Mock the Telegram manager for all endpoint tests."""
     from app.api.endpoints import telegram
     from app.services import TelegramBotAPI, TelegramMembershipService
-    
+
     # Create mock manager
     mock_manager = MagicMock()
-    
+
     # Create mock service and bot
     mock_service = MagicMock(spec=TelegramMembershipService)
     mock_bot = MagicMock(spec=TelegramBotAPI)
-    
+
     # Configure manager to return mocks
     mock_manager.get_service.return_value = mock_service
     mock_manager.get_bot.return_value = mock_bot
-    
+
     # Set the manager in the telegram endpoints module
     telegram.set_telegram_manager(mock_manager)
-    
+
     yield mock_manager
-    
+
     # Clean up
     telegram.set_telegram_manager(None)
