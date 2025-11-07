@@ -6,7 +6,10 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.121.0",
     "granian>=2.5.7",
+    "httpx>=0.28.1",
     "motor>=3.7.1",
+    "passlib>=1.7.4",
+    "pydantic[email]>=2.12.4",
     "python-jose[cryptography]>=3.5.0",
 ]
 
