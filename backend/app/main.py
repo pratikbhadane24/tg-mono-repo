@@ -31,6 +31,7 @@ _telegram_manager = None
 # Configure CORS middleware
 origins = [
     "http://localhost:5173",
+    "http://localhost:5174",
     "https://cirrus.trade",
     "https://web.cirrus.trade",
     "https://analyst.cirrus.trade",

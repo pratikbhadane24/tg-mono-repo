@@ -249,6 +249,8 @@ class SellerService:
             "total_channels": len(channels),
             "active_members": active_members,
             "total_members": total_members,
+            # total_revenue is returned in cents (matches SellerStats.total_revenue)
+            "total_revenue": total_revenue,
             "total_revenue_cents": total_revenue,
             "total_revenue_dollars": total_revenue / 100,
         }

@@ -162,7 +162,9 @@ class SellerStats(BaseModel):
     total_channels: int
     total_members: int
     active_members: int
-    total_revenue: int
+    # Make total_revenue optional with a default so missing keys from the
+    # service won't cause a ValidationError during response construction.
+    total_revenue: int = 0
 
 
 class CreateChannelRequest(BaseModel):
